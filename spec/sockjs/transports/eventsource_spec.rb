@@ -7,6 +7,12 @@ require "sockjs"
 require "sockjs/transports/eventsource"
 
 describe SockJS::Transports::EventSource do
+  around :each do |example|
+    EM.run {
+      example.run
+      EM.stop
+    }
+  end
   it_should_match_path  "server/session/eventsource"
   it_should_have_method "GET"
   transport_handler_eql "a/b/eventsource", "GET"

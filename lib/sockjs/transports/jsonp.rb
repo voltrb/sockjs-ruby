@@ -59,7 +59,7 @@ module SockJS
       self.method  = "POST"
 
       # Handler.
-      def handle(request)
+      def handle_request(request)
         if request.content_type == "application/x-www-form-urlencoded"
           self.handle_form_data(request)
         else
@@ -74,12 +74,11 @@ module SockJS
         # It always has to be d=something.
         if data && data.first && data.first.first == "d"
           data = data.first.last
+          empty_payload if data.empty?
           self.handle_clean_data(request, data)
         else
           empty_payload
         end
-      rescue SockJS::HttpError => error
-        error.to_response(self, request)
       end
 
       def handle_raw_data(request)
@@ -100,8 +99,6 @@ module SockJS
             response.set_session_id(request.session_id)
             response.write("ok")
           else
-            # We have to use curly brackets, because of ... well
-            # because of bulldozer really http://pastie.org/3540401
             raise SockJS::HttpError.new(404, "Session is not open!") { |response|
               response.set_content_type(:plain)
               response.set_session_id(request.session_id)

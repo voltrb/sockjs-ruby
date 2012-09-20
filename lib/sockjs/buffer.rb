@@ -26,9 +26,7 @@ module SockJS
   class Buffer
     attr_reader :messages
 
-    PERMITTED_STATUS_NAMES ||= begin
-      [:newly_created, :open, :opening, :closing, :closed]
-    end
+    PERMITTED_STATUS_NAMES = [:newly_created, :open, :opening, :closing, :closed]
 
     # There's a new buffer instance created for every new request,
     # so we must not forget to set the proper state for every one.

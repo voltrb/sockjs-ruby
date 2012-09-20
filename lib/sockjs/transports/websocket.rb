@@ -11,6 +11,10 @@ module SockJS
       self.prefix = /[^.]+\/([^.]+)\/websocket$/
       self.method = "GET"
 
+      def disabled?
+        !options[:websocket]
+      end
+
       # Handlers.
       def handle_open(request)
         SockJS.debug "Opening WS connection."

@@ -7,6 +7,13 @@ require "sockjs"
 require "sockjs/transports/htmlfile"
 
 describe SockJS::Transports::HTMLFile do
+  around :each do |example|
+    EM.run {
+      example.run
+      EM.stop
+    }
+  end
+
   it_should_match_path  "server/session/htmlfile"
   it_should_have_method "GET"
   transport_handler_eql "a/b/htmlfile", "GET"
@@ -34,7 +41,7 @@ describe SockJS::Transports::HTMLFile do
       let(:request) do
         @request ||= FakeRequest.new.tap do |request|
           request.callback = "clbk"
-          request
+          request.path_info = '/a/b/htmlfile'
         end
       end
 
@@ -51,8 +58,7 @@ describe SockJS::Transports::HTMLFile do
       end
 
       it "should return HTML wrapper in the body" do
-        response # Run the handler.
-        response.chunks.last.should match(/document.domain = document.domain/)
+        response.chunks.find{|chunk| chunk =~ (/document.domain = document.domain/)}.should_not be_nil
       end
 
       it "should have at least 1024 bytes"

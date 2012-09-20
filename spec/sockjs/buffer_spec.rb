@@ -33,7 +33,6 @@ describe SockJS::Buffer do
 
     it "should return array frame with all the messages otherwise" do
       subject = described_class.new(:open)
-      subject.to_frame.should eql('a[]')
 
       subject << "Hello"
       subject.to_frame.should eql('a["Hello"]')
@@ -63,9 +62,11 @@ describe SockJS::Buffer do
   describe "#close(status, message)" do
     subject { described_class.new(:open) }
 
-    [:newly_created, :opening, :closing, :closed].each do |status|
+    [:newly_created, :closed].each do |status|
       it "should fail if status is #{status}" do
-        -> { described_class.new(status).close(2010, "") }.should raise_error(SockJS::StateMachineError)
+        expect do
+          described_class.new(status).close(2010, "")
+        end.to raise_error(SockJS::StateMachineError)
       end
     end
 

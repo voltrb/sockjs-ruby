@@ -12,6 +12,12 @@ describe SockJS::Transports::JSONP do
   transport_handler_eql "a/b/jsonp", "GET"
 
   describe "#handle(request)" do
+    around :each do |example|
+      EM.run do
+        example.run
+        EM.stop
+      end
+    end
     let(:transport) do
       described_class.new(SockJS::Connection.new {}, Hash.new)
     end
@@ -37,7 +43,7 @@ describe SockJS::Transports::JSONP do
       context "with a session" do
         let(:transport) do
           connection = SockJS::Connection.new {}
-          connection.sessions["b"] = FakeSession.new(self, Hash.new)
+          connection.sessions["b"] = FakeSession.new(Hash.new)
 
           described_class.new(connection, Hash.new)
         end
@@ -104,9 +110,16 @@ describe SockJS::Transports::JSONPSend do
   transport_handler_eql "a/b/jsonp_send", "POST"
 
   describe "#handle(request)" do
+    around :each do |example|
+      EM.run do
+        example.run
+        EM.stop
+      end
+    end
+
     let(:transport) do
       connection = SockJS::Connection.new {}
-      connection.sessions["b"] = FakeSession.new(self, Hash.new)
+      connection.sessions["b"] = FakeSession.new(Hash.new, :open)
 
       described_class.new(connection, Hash.new)
     end
@@ -221,7 +234,7 @@ describe SockJS::Transports::JSONPSend do
     end
 
     [nil, "", "d=", "f=test"].each do |data|
-      context "without data = #{data.inspect}" do
+      context "with data = #{data.inspect}" do
         let(:request) do
           FakeRequest.new.tap do |request|
             request.path_info = "/a/b/jsonp_send"

@@ -1,0 +1,1 @@
+Rack::SockJS should expect to be mapped, not get called with a prefix

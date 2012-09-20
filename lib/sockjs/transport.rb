@@ -121,6 +121,12 @@ module SockJS
       response
     end
 
+    def handle(request)
+      handle_request(request)
+    rescue HttpError => error
+      error.to_response(self, request)
+    end
+
     def handle_session_unavailable(error, response)
       session = error.session
 
@@ -152,12 +158,13 @@ module SockJS
     #      i) There IS a consumer -> Send c[2010,"Another con still open"] AND END
     def get_session(path_info = nil, &block)
       # The block is supposed to return session.
-      block ||= lambda do |sessions|
-        match = path_info.match(self.class.prefix)
-        sessions[match[1]]
-      end
-
-      session = block.call(self.connection.sessions)
+      session =
+        if block_given?
+          yield(connection.sessions)
+        else
+          match = path_info.match(self.class.prefix)
+          connection.sessions[match[1]]
+        end
 
       if session
         if session.closing?
@@ -172,7 +179,7 @@ module SockJS
         #   SockJS.debug "get_session: another connection still open"
         #   raise SessionUnavailableError.new(session, 2010, "Another connection still open")
         else
-          raise "We should never get here!\nsession.status: #{session.instance_variable_get(:@status)}, has session response: #{!! session.response}"
+          raise "We should never get here!\nsession.status: #{session.status}, has session response: #{!! session.response}"
         end
       else
         SockJS.debug "get_session: session for #{path_info.inspect} doesn't exist."

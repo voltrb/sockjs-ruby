@@ -104,7 +104,7 @@ describe SockJS::Transport do
       described_class.new(Object.new, Hash.new)
     end
 
-    describe "#disabled?" do
+    describe "#disabled?", :pending => "valid?" do
       it "should be false if the current class isn't in disabled_transports" do
         subject.should_not be_disabled
       end

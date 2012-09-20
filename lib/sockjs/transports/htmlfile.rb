@@ -14,19 +14,29 @@ module SockJS
         SockJS::Session
       end
 
+      HTML_TEMPLATE = <<-EOT.freeze
+<!doctype html>
+<html><head>
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+</head><body><h2>Don't panic!</h2>
+  <script>
+    document.domain = document.domain;
+    var c = parent.{{ callback }};
+    c.start();
+    function p(d) {c.message(d);};
+    window.onload = function() {c.stop();};
+  </script>
+  EOT
+
       # Handler.
       def handle(request)
         if request.callback
           # TODO: Investigate why we can't use __DATA__
-          data = begin
-            lines = File.readlines(__FILE__)
-            index = lines.index("__END__\n")
-            lines[(index + 1)..-1].join("")
-          end
 
           # Safari needs at least 1024 bytes to parse the website. Relevant:
           #   http://code.google.com/p/browsersec/wiki/Part2#Survey_of_content_sniffing_behaviors
-          html = data.gsub("{{ callback }}", request.callback)
+          html = HTML_TEMPLATE.gsub("{{ callback }}", request.callback)
           body = html + (" " * (1024 - html.bytesize)) + "\r\n\r\n"
 
           response(request, 200, session: :create) do |response, session|
@@ -58,17 +68,3 @@ module SockJS
     end
   end
 end
-
-__END__
-<!doctype html>
-<html><head>
-  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-</head><body><h2>Don't panic!</h2>
-  <script>
-    document.domain = document.domain;
-    var c = parent.{{ callback }};
-    c.start();
-    function p(d) {c.message(d);};
-    window.onload = function() {c.stop();};
-  </script>

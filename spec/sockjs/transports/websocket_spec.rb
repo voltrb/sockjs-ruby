@@ -39,7 +39,7 @@ describe SockJS::Transports::WebSocket do
 
   describe "#handle(request)" do
     it "should respond with 404 and an error message if the transport is disabled" do
-      options   = {disabled_transports: [described_class]}
+      options   = {:websocket => false}
       transport = transport(options)
       response  = response(transport, request)
 

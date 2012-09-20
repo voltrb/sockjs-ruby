@@ -5,6 +5,7 @@ module SockJS
     include CallbackMixin
 
     attr_accessor :buffer, :response, :transport
+    attr_reader :status
 
     def initialize(callbacks)
       @callbacks = callbacks
@@ -33,8 +34,8 @@ module SockJS
 
     def send(*messages)
       return if messages.empty?
-      self.buffer.push(*messages)
-      self.send_data(self.buffer.to_frame)
+      buffer.push(*messages)
+      send_data(buffer.to_frame)
     end
 
     def finish(no_content = false)
@@ -130,9 +131,11 @@ module SockJS
       end
     end
 
-    def create_response(reset_timer = true, &block)
-      if reset_timer
-        reset_timer { block.call }
+    def create_response(timer_reset = true, &block)
+      if timer_reset
+        self.reset_timer {
+          block.call
+        }
       else
         block.call
       end
@@ -140,9 +143,9 @@ module SockJS
       @received_messages.clear
 
       if @buffer.contains_data?
-        @buffer.to_frame.tap do
-          @buffer.clear unless self.closing?
-        end
+        result = @buffer.to_frame
+        @buffer.clear unless self.closing?
+        result
       else
         nil
       end
@@ -181,11 +184,11 @@ module SockJS
 
     def close(status = 3000, message = "Go away!")
       # Hint: session.buffer = Buffer.new(:open) or so
-      if self.newly_created?
+      if newly_created?
         raise "You can't change from #{@status} to closing!"
       end
 
-      if not self.closing?
+      if not closing?
         self.close_session(status, message)
       end
 
@@ -199,16 +202,13 @@ module SockJS
         @alive_checker = nil
       end
 
-      # SessionWitchCachedMessages#after_app_run is aliased to #finish
-      # and we MUST NOT clear the buffer, because we have to cache it
-      # for the next responses. Bugger ...
-      self.finish if self.class == SockJS::Session
+      finish_on_close
 
-      self.reset_close_timer
+      reset_close_timer
+    end
 
-      # Hint: session.buffer = Buffer.new(:open) or so
-    rescue SockJS::StateMachineError => error
-      raise error
+    def finish_on_close
+      finish
     end
 
     def on_close
@@ -265,7 +265,7 @@ module SockJS
       SockJS.debug "Executing user's SockJS app"
       frame = self.process_buffer(false)
       self.send_data(frame) if frame and not frame.match(/^c\[\d+,/)
-      SockJS.debug "User's SockJS app finished"
+        SockJS.debug "User's SockJS app finished"
     end
 
     # Periodic timer runs the user app if it receives some
@@ -309,51 +309,53 @@ module SockJS
     # Disconnect timer to close the response after longer innactivity.
     def set_timer
       SockJS.debug "Setting @disconnect_timer to #{@disconnect_delay}"
-      @disconnect_timer ||= begin
-        EM::Timer.new(@disconnect_delay) do
-          SockJS.debug "#{@disconnect_delay} has passed, firing @disconnect_timer"
-          @disconnect_timer_canceled = true
+      @disconnect_timer ||=
+        begin
+          EM::Timer.new(@disconnect_delay) do
+            SockJS.debug "#{@disconnect_delay} has passed, firing @disconnect_timer"
+            @disconnect_timer_canceled = true
 
-          @alive_checker.cancel if @alive_checker
+            @alive_checker.cancel if @alive_checker
 
-          if self.opening? or self.open?
-            # OK, so we're here, closing the open response ... but its body is already closed, huh?
-            SockJS.debug "@disconnect_timer: closing the connection."
-            self.close
-            SockJS.debug "@disconnect_timer: connection closed."
-          else
-            SockJS.debug "@disconnect_timer: doing nothing."
+            if self.opening? or self.open?
+              # OK, so we're here, closing the open response ... but its body is already closed, huh?
+              SockJS.debug "@disconnect_timer: closing the connection."
+              self.close
+              SockJS.debug "@disconnect_timer: connection closed."
+            else
+              SockJS.debug "@disconnect_timer: doing nothing."
+            end
           end
         end
-      end
     end
 
     # Alive checker checks
     def set_alive_checker
       SockJS.debug "Setting alive_checker."
-      @alive_checker ||= begin
-        EM::PeriodicTimer.new(1) do
-          if @transport && @response && ! @response.body.closed?
-            begin
-              if @response.due_for_alive_check
-                SockJS.debug "Checking if still alive"
-                # If the following statement fails, we know
-                # that the connection has been interrupted.
-                @response.write(@transport.empty_string)
+      @alive_checker ||=
+        begin
+          EM::PeriodicTimer.new(1) do
+            if @transport && @response && ! @response.body.closed?
+              begin
+                if @response.due_for_alive_check
+                  SockJS.debug "Checking if still alive"
+                  # If the following statement fails, we know
+                  # that the connection has been interrupted.
+                  @response.write(@transport.empty_string)
+                end
+              rescue Exception => error
+                puts "==> "
+                p error
+                puts "==> "
+                self.on_close
+                @alive_checker.cancel
               end
-            rescue Exception => error
-              puts "==> "
-              p error
-              puts "==> "
-              self.on_close
-              @alive_checker.cancel
+            else
+              puts "~ [TODO] Not checking if still alive, why?"
+              puts "Status: #{@status} (response.body.closed: #{@response.body.closed?})\nSession class: #{self.class}\nTransport class: #{@transport.class}\nResponse: #{@response.to_s}\n\n"
             end
-          else
-            puts "~ [TODO] Not checking if still alive, why?"
-            puts "Status: #{@status} (response.body.closed: #{@response.body.closed?})\nSession class: #{self.class}\nTransport class: #{@transport.class}\nResponse: #{@response.to_s}\n\n"
           end
         end
-      end
     end
 
     def reset_timer(&block)

@@ -35,7 +35,9 @@ end
 
 require "stringio"
 
-class FakeRequest
+require 'thin'
+require 'sockjs/servers/thin'
+class FakeRequest < SockJS::Thin::Request
   attr_reader :chunks
   attr_writer :data
   attr_accessor :path_info, :callback, :if_none_match, :content_type
@@ -82,19 +84,13 @@ require "sockjs/session"
 require "sockjs/buffer"
 
 module ResetSessionMixin
-  def initialize(connection, callbacks = Hash.new, status = :created)
-    super(connection, callbacks)
+  def initialize(callbacks = Hash.new, status = :created)
+    super(callbacks)
     @status = status
   end
 
   def buffer
     @buffer ||= SockJS::Buffer.new
-  end
-
-  def set_timer
-  end
-
-  def reset_timer
   end
 
   def reset_close_timer
@@ -104,8 +100,15 @@ end
 
 class FakeSession < SockJS::Session
   include ResetSessionMixin
+
+  def set_timer
+  end
+
+  def reset_timer
+  end
 end
 
+require 'thin'
 require "sockjs/servers/thin"
 
 class SockJS::Thin::Response

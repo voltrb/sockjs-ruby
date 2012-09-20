@@ -15,10 +15,15 @@ extend Module.new {
 
 source :rubygems
 
+gem 'corundum'
 gem "thin"
 gem "rack"
 gem "faye-websocket"
 
+gemspec
+
 group(:test) do
+  gem 'pry'
+  gem 'pry-debugger'
   gem "rspec"
 end
