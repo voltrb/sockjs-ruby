@@ -13,9 +13,8 @@ describe SockJS::Transports::EventSource do
       EM.stop
     }
   end
-  it_should_match_path  "server/session/eventsource"
-  it_should_have_method "GET"
-  transport_handler_eql "a/b/eventsource", "GET"
+
+  transport_handler_eql "/eventsource", "GET"
 
   describe "#handle(request)" do
     let(:transport) do

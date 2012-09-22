@@ -1,1 +1,15 @@
+Catch and display uncaught exceptions - tricky because of async
+
 Rack::SockJS should expect to be mapped, not get called with a prefix
+
+Extract FSM execution to module
+
+Unpack Transport#response - it's three methods
+
+Refactor graph of Transport/Response/Session/Buffer - it's crazytown
+
+Study and document relationship of actors in the responses
+
+Why is Rack::SockJS difference from SockJS::Connection?  Merge or document
+
+Override pattern for get_session (or at least find_session)

@@ -5,11 +5,8 @@ require "sockjs/transport"
 module SockJS
   module Transports
     class XHRPost < Transport
-      # Settings.
-      self.prefix  = /[^.]+\/([^.]+)\/xhr$/
-      self.method  = "POST"
+      register '/xhr', 'POST'
 
-      # Handler.
       def handle(request)
         response(request, 200, session: :create) do |response, session|
           unless session.newly_created?
@@ -27,11 +24,8 @@ module SockJS
     end
 
     class XHROptions < Transport
-      # Settings.
-      self.prefix  = /[^.]+\/([^.]+)\/xhr$/
-      self.method  = "OPTIONS"
+      register '/xhr', 'OPTIONS'
 
-      # Handler.
       def handle(request)
         response(request, 204) do |response|
           response.set_allow_options_post
@@ -44,11 +38,8 @@ module SockJS
     end
 
     class XHRSendPost < Transport
-      # Settings.
-      self.prefix  = /[^.]+\/([^.]+)\/xhr_send$/
-      self.method  = "POST"
+      register '/xhr_send', 'POST'
 
-      # Handler.
       def handle(request)
         response(request, 204, data: request.data.read) do |response, session|
           if session
@@ -67,8 +58,6 @@ module SockJS
             response.set_session_id(request.session_id)
             response.write_head
           else
-            # We have to use curly brackets, because of ... well
-            # because of bulldozer really http://pastie.org/3540401
             raise SockJS::HttpError.new(404, "Session is not open!") { |response|
               response.set_session_id(request.session_id)
             }
@@ -81,23 +70,18 @@ module SockJS
     end
 
     class XHRSendOptions < XHROptions
-      # Settings.
-      self.prefix  = /[^.]+\/([^.]+)\/xhr_send$/
-      self.method  = "OPTIONS"
+      register '/xhr_send', 'OPTIONS'
     end
 
     class XHRStreamingPost < Transport
       PREAMBLE ||= "h" * 2048 + "\n"
 
-      # Settings.
-      self.prefix = /[^.]+\/([^.]+)\/xhr_streaming$/
-      self.method = "POST"
+      register '/xhr_streaming', 'POST'
 
       def session_class
         SockJS::Session
       end
 
-      # Handler.
       def handle(request)
         response(request, 200, session: :create) do |response, session|
           response.set_content_type(:javascript)
@@ -124,9 +108,7 @@ module SockJS
     end
 
     class XHRStreamingOptions < XHROptions
-      # Settings.
-      self.prefix  = /[^.]+\/([^.]+)\/xhr_streaming$/
-      self.method  = "OPTIONS"
+      register '/xhr_streaming', 'OPTIONS'
     end
   end
 end

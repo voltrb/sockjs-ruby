@@ -14,9 +14,7 @@ describe SockJS::Transports::HTMLFile do
     }
   end
 
-  it_should_match_path  "server/session/htmlfile"
-  it_should_have_method "GET"
-  transport_handler_eql "a/b/htmlfile", "GET"
+  transport_handler_eql "/htmlfile", "GET"
 
   describe "#handle(request)" do
     let(:transport) do

@@ -7,13 +7,6 @@ require "sockjs"
 require "sockjs/transports/iframe"
 
 describe SockJS::Transports::IFrame do
-  it_should_match_path  "iframe.html"
-  it_should_match_path  "iframe1.html"
-  it_should_match_path  "iframe-1.html"
-  it_should_have_method "GET"
-  transport_handler_eql "iframe.1.html", "GET"
-
-
   describe "#handle(request)" do
     let(:transport) do
       connection = SockJS::Connection.new {}

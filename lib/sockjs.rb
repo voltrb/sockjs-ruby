@@ -29,6 +29,10 @@ module SockJS
     self.puts("~ #{message}")
   end
 
+  def self.debug_exception(exception)
+    self.debug(([exception.class.name, exception.message].join(": ") + exception.backtrace).join("\n"))
+  end
+
   class CloseError < StandardError
     attr_reader :status, :message
     def initialize(status, message)

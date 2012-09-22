@@ -13,7 +13,32 @@ module SockJS
     end
   end
 
+  class MethodNotSupported < StandardError
+    attr_reader :request_method, :allowed_methods, :path
+    def initialize(env, allowed_methods)
+      @request_method = env["REQUEST_METHOD"]
+      @path = env["SCRIPT_NAME"] + env["PATH_INFO"]
+      @allowed_methods = allowed_methods
+      super("Method not supported: #@request_method for #@path (allowed: #{@allowed_methods.join(", ")})")
+    end
+  end
+
   class Transport
+    class MethodMap
+      def initialize(map)
+        @method_map = map
+      end
+      attr_reader :method_map
+
+      def call(env)
+        app = @method_map.fetch(env["REQUEST_METHOD"])
+        app.call(env)
+      rescue
+        raise MethodNotSupported.new(env, @method_map.keys)
+      end
+    end
+
+    #XXX Remove
     # @deprecated: See response.rb
     CONTENT_TYPES ||= {
       plain: "text/plain; charset=UTF-8",
@@ -22,25 +47,22 @@ module SockJS
       event_stream: "text/event-stream; charset=UTF-8"
     }
 
-    class << self
-      attr_accessor :prefix, :method, :subclasses
-    end
+    module ClassMethods
+      def transports
+        @transports ||= Hash.new{|h,k| h[k] = []}
+      end
 
-    self.method     ||= "GET"
-    self.subclasses ||= Array.new
+      def register(prefix, method)
+        Transport.transports[prefix] << [method, self]
+      end
 
-    def self.handlers(prefix)
-      self.subclasses.select do |subclass|
-        subclass.prefix === prefix
+      def prefix_map
+        Hash[transports.map{|prefix, transports|
+          [prefix, MethodMap.new(Hash[transports])]
+        }]
       end
     end
-
-    def self.inherited(subclass)
-      Transport.subclasses << subclass
-
-      subclass.method = self.method
-      subclass.prefix = self.prefix
-    end
+    extend ClassMethods
 
     # Instance methods.
     attr_reader :connection, :options
@@ -70,6 +92,11 @@ module SockJS
       "#{payload}\n"
     end
 
+    def call(env)
+      request = ::SockJS::Thin::Request.new(env)
+      handle(request)
+    end
+
     def response(request, status, options = Hash.new, &block)
       response = self.response_class.new(request, status)
 
@@ -82,10 +109,10 @@ module SockJS
         block.call(response)
       when 2
         begin
-          if session = self.get_session(request.path_info)
+          if session = self.get_session(session_key(request))
             session.buffer = Buffer.new(:open)
           elsif session.nil? && options[:session] == :create
-            session = self.create_session(request.path_info)
+            session = self.create_session(session_key(request))
             session.buffer = Buffer.new
           end
 
@@ -151,20 +178,18 @@ module SockJS
       # This helps with identifying open connections.
     end
 
+    def session_key(request)
+      request.env['sockjs.session-key']
+    end
+
     # There's a session:
     #   a) It's closing -> Send c[3000,"Go away!"] AND END
     #   b) It's open:
     #      i) There IS NOT any consumer -> OK. AND CONTINUE
     #      i) There IS a consumer -> Send c[2010,"Another con still open"] AND END
-    def get_session(path_info = nil, &block)
+    def get_session(session_key)
       # The block is supposed to return session.
-      session =
-        if block_given?
-          yield(connection.sessions)
-        else
-          match = path_info.match(self.class.prefix)
-          connection.sessions[match[1]]
-        end
+      session = connection.sessions[session_key]
 
       if session
         if session.closing?
@@ -175,24 +200,22 @@ module SockJS
           SockJS.debug "get_session: session retrieved successfully"
           return session
         # TODO: Should be alright now, check 6aeeaf1fd69c
-        # elsif session.response # THIS is an utter piece of sssshhh ... of course there's a response once we open it!
-        #   SockJS.debug "get_session: another connection still open"
-        #   raise SessionUnavailableError.new(session, 2010, "Another connection still open")
+         elsif session.response # THIS is an utter piece of sssshhh ... of course there's a response once we open it!
+           SockJS.debug "get_session: another connection still open"
+           raise SessionUnavailableError.new(session, 2010, "Another connection still open")
         else
           raise "We should never get here!\nsession.status: #{session.status}, has session response: #{!! session.response}"
         end
       else
-        SockJS.debug "get_session: session for #{path_info.inspect} doesn't exist."
+        SockJS.debug "get_session: session for #{session_key.inspect} doesn't exist."
         return nil
       end
     end
 
-    def create_session(path_info, response = nil, preamble = nil)
+    def create_session(session_key, response = nil, preamble = nil)
       response.write(preamble) if preamble
 
-      match = path_info.match(self.class.prefix)
-
-      return self.connection.create_session(match[1], self)
+      return self.connection.create_session(session_key, self)
     end
   end
 end

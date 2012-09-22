@@ -7,19 +7,18 @@ module SockJS
 
     # This is the receiver.
     class JSONP < Transport
-      # Settings.
-      self.prefix  = /[^.]+\/([^.]+)\/jsonp$/
-      self.method  = "GET"
+      register '/jsonp', 'GET'
 
+      #XXX May cause issues with single transport
+      #Move callback_function to response?
       attr_accessor :callback_function
 
       # Handler.
       def handle(request)
         if request.callback
-          match = request.path_info.match(self.class.prefix)
           self.callback_function = request.callback
 
-          if session = self.connection.sessions[match[1]]
+          if session = self.connection.sessions[session_key(request)]
             response(request, 200) do |response, session|
               response.set_content_type(:plain)
 
@@ -54,9 +53,7 @@ module SockJS
 
     # This is the sender.
     class JSONPSend < Transport
-      # Settings.
-      self.prefix  = /[^.]+\/([^.]+)\/jsonp_send$/
-      self.method  = "POST"
+      register '/jsonp_send', 'POST'
 
       # Handler.
       def handle_request(request)

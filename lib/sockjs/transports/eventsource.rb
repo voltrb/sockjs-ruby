@@ -5,15 +5,12 @@ require "sockjs/transport"
 module SockJS
   module Transports
     class EventSource < Transport
-      # Settings.
-      self.prefix  = /[^.]+\/([^.]+)\/eventsource$/
-      self.method  = "GET"
+      register('/eventsource', 'GET')
 
       def session_class
         SockJS::Session
       end
 
-      # Handler.
       def handle(request)
         response(request, 200, session: :create) do |response, session|
           response.set_content_type(:event_stream)

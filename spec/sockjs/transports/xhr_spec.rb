@@ -15,9 +15,7 @@ describe "XHR" do
   end
 
   describe SockJS::Transports::XHRPost do
-    it_should_match_path  "server/session/xhr"
-    it_should_have_method "POST"
-    transport_handler_eql "a/b/xhr", "POST"
+    transport_handler_eql "/xhr", "POST"
 
     describe "#handle(request)" do
       let(:transport) do
@@ -29,8 +27,8 @@ describe "XHR" do
 
       let(:request) do
         FakeRequest.new.tap do |request|
-          random = Array.new(7) { rand(256) }.pack("C*").unpack("H*").first
-          request.path_info = "/a/#{random}/xhr"
+          request.session_key = Array.new(7) { rand(256) }.pack("C*").unpack("H*").first
+          request.path_info = "/xhr"
         end
       end
 
@@ -41,7 +39,8 @@ describe "XHR" do
       context "with a session" do
         let(:request) do
           FakeRequest.new.tap do |request|
-            request.path_info = "/a/b/xhr"
+            request.path_info = "/xhr"
+            request.session_key = "b"
           end
         end
 
@@ -93,9 +92,7 @@ describe "XHR" do
 
 
   describe SockJS::Transports::XHROptions do
-    it_should_match_path  "server/session/xhr"
-    it_should_have_method "OPTIONS"
-    transport_handler_eql "a/b/xhr", "OPTIONS"
+    transport_handler_eql "/xhr", "OPTIONS"
 
     describe "#handle(request)" do
       let(:transport) do
@@ -138,22 +135,20 @@ describe "XHR" do
 
 
   describe SockJS::Transports::XHRSendPost do
-    it_should_match_path  "server/session/xhr_send"
-    it_should_have_method "POST"
-    transport_handler_eql "a/b/xhr_send", "POST"
+    transport_handler_eql "/xhr_send", "POST"
 
     describe "#handle(request)" do
       let(:transport) do
         connection = SockJS::Connection.new {}
         session = FakeSession.new({}, :open)
         connection.sessions["b"] = session
-        described_class.new(connection, Hash.new)
+        described_class.new(connection, {})
       end
 
       let(:request) do
         FakeRequest.new.tap do |request|
-          random = Array.new(7) { rand(256) }.pack("C*").unpack("H*").first
-          request.path_info = "/a/#{random}/xhr_send"
+          request.session_key = Array.new(7) { rand(256) }.pack("C*").unpack("H*").first
+          request.path_info = "/xhr_send"
         end
       end
 
@@ -164,7 +159,8 @@ describe "XHR" do
       context "with a session" do
         let(:request) do
           FakeRequest.new.tap do |request|
-            request.path_info = "/a/b/xhr_send"
+            request.path_info = "/xhr_send"
+            request.session_key = 'b'
             request.data = '"message"'
           end
         end
@@ -218,9 +214,7 @@ describe "XHR" do
 
 
   describe SockJS::Transports::XHRSendOptions do
-    it_should_match_path  "server/session/xhr_send"
-    it_should_have_method "OPTIONS"
-    transport_handler_eql "a/b/xhr_send", "OPTIONS"
+    transport_handler_eql "/xhr_send", "OPTIONS"
 
     describe "#handle(request)" do
       let(:transport) do
@@ -263,9 +257,7 @@ describe "XHR" do
 
 
   describe SockJS::Transports::XHRStreamingPost do
-    it_should_match_path  "server/session/xhr_streaming"
-    it_should_have_method "POST"
-    transport_handler_eql "a/b/xhr_streaming", "POST"
+    transport_handler_eql "/xhr_streaming", "POST"
 
     describe "#handle(request)" do
       let(:transport) do
@@ -313,9 +305,7 @@ describe "XHR" do
 
 
   describe SockJS::Transports::XHRStreamingOptions do
-    it_should_match_path  "server/session/xhr_streaming"
-    it_should_have_method "OPTIONS"
-    transport_handler_eql "a/b/xhr_streaming", "OPTIONS"
+    transport_handler_eql "/xhr_streaming", "OPTIONS"
 
     describe "#handle(request)" do
       let(:transport) do

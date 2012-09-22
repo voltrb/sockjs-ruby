@@ -6,9 +6,7 @@ require "sockjs/transport"
 module SockJS
   module Transports
     class HTMLFile < Transport
-      # Settings.
-      self.prefix  = /[^.]+\/([^.]+)\/htmlfile$/
-      self.method  = "GET"
+      register('/htmlfile', 'GET')
 
       def session_class
         SockJS::Session

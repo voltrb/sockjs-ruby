@@ -6,10 +6,6 @@ require "sockjs/transport"
 module SockJS
   module Transports
     class IFrame < Transport
-      # Settings.
-      self.prefix  = /iframe[0-9\-.a-z_]*.html/
-      self.method  = "GET"
-
       # Handler.
       def handle(request)
         # TODO: Investigate why we can't use __DATA__

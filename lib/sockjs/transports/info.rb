@@ -6,10 +6,6 @@ module SockJS
   module Transports
 
     class Info < Transport
-      # Settings.
-      self.prefix = "info"
-      self.method = "GET"
-
       # Handler.
       def handle(request)
         response(request, 200) do |response|

@@ -7,9 +7,7 @@ require "sockjs"
 require "sockjs/transports/jsonp"
 
 describe SockJS::Transports::JSONP do
-  it_should_match_path  "server/session/jsonp"
-  it_should_have_method "GET"
-  transport_handler_eql "a/b/jsonp", "GET"
+  transport_handler_eql "/jsonp", "GET"
 
   describe "#handle(request)" do
     around :each do |example|
@@ -35,8 +33,9 @@ describe SockJS::Transports::JSONP do
     context "with callback specified" do
       let(:request) do
         @request ||= FakeRequest.new.tap do |request|
-          request.path_info = "/echo/a/b/jsonp"
+          request.path_info = "/jsonp"
           request.callback = "clbk"
+          request.session_key = "b"
         end
       end
 
@@ -105,9 +104,7 @@ end
 
 
 describe SockJS::Transports::JSONPSend do
-  it_should_match_path  "server/session/jsonp_send"
-  it_should_have_method "POST"
-  transport_handler_eql "a/b/jsonp_send", "POST"
+  transport_handler_eql "/jsonp_send", "POST"
 
   describe "#handle(request)" do
     around :each do |example|
@@ -140,7 +137,8 @@ describe SockJS::Transports::JSONPSend do
         context "with a valid session" do
           let(:request) do
             FakeRequest.new.tap do |request|
-              request.path_info = "/a/b/jsonp_send"
+              request.path_info = "/jsonp_send"
+              request.session_key = "b"
               request.content_type = "application/x-www-form-urlencoded"
               request.data = "d=%22sth%22"
             end
@@ -189,8 +187,9 @@ describe SockJS::Transports::JSONPSend do
         context "with a valid session" do
           let(:request) do
             FakeRequest.new.tap do |request|
-              request.path_info = "/a/b/jsonp_send"
+              request.path_info = "/jsonp_send"
               request.data = '"data"'
+              request.session_key = "b"
             end
           end
 
@@ -237,7 +236,8 @@ describe SockJS::Transports::JSONPSend do
       context "with data = #{data.inspect}" do
         let(:request) do
           FakeRequest.new.tap do |request|
-            request.path_info = "/a/b/jsonp_send"
+            request.path_info = "/jsonp_send"
+            request.session_key = "b"
             request.content_type = "application/x-www-form-urlencoded"
             request.data = data
           end

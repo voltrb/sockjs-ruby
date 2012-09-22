@@ -53,3 +53,35 @@ task :unpack_tests do
   require "yaml"
   puts tests.to_yaml
 end
+
+desc "Run the protocol test server"
+task :protocol_test, [:port] do |task, args|
+  require "thin"
+  require "eventmachine"
+  require 'sockjs/examples/protocol_conformance_test'
+
+  $DEBUG = true
+
+  PORT = args[:port] || 8081
+
+  ::Thin::Connection.class_eval do
+    def handle_error(error = $!)
+      log "[#{error.class}] #{error.message}\n  - "
+      log error.backtrace.join("\n  - ")
+      close_connection rescue nil
+    end
+  end
+
+  SockJS.debug!
+  SockJS.debug "Available handlers: #{::SockJS::Transport.subclasses.inspect}"
+
+  protocol_version = args[:version] || SockJS::PROTOCOL_VERSION
+  options = {sockjs_url: "http://cdn.sockjs.org/sockjs-#{protocol_version}.min.js"}
+
+  app = SockJS::Examples::ProtocolConformanceTest.build_app(options)
+
+  EM.run do
+    thin = Rack::Handler.get("thin")
+    thin.run(app, Port: PORT)
+  end
+end

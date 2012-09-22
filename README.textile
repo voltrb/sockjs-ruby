@@ -98,7 +98,7 @@ h2. SockJS Family
 
 h1. Development
 
-Get "sockjs-protocol":https://github.com/sockjs/sockjs-protocol (installation information are in its README) and run @./examples/sockjs_apps_for_sockjs_protocol_tests.rb@. Now you can run the tests against it, for instance:
+Get "sockjs-protocol":https://github.com/sockjs/sockjs-protocol (installation information are in its README) and run @rake protocol_test@. Now you can run the tests against it, for instance:
 
 <pre>
 # Run all the tests.

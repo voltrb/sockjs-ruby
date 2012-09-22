@@ -48,9 +48,6 @@ module SockJS
 
 
     class RawWebSocket < Transport
-      # Settings.
-      self.prefix = /^websocket$/
-      self.method = "GET"
 
       def session_class
         SockJS::WebSocketSession
@@ -64,6 +61,11 @@ module SockJS
         elsif not ["Upgrade", "keep-alive, Upgrade"].include?(request.env["HTTP_CONNECTION"])
           raise HttpError.new(400, '"Connection" must be "Upgrade".')
         end
+      end
+
+      #XXX @ws is a problem for single transport
+      def sesssion_key(request)
+        @ws.object_id.to_s
       end
 
       # Handlers.

@@ -20,19 +20,19 @@ module SockJS
     # request.http_method
     # => "GET"
     def http_method
-      raise NotImplementedError.new("You are supposed to rewrite #http_method in a subclass!")
+      raise NotImplementedError, "You are supposed to rewrite #http_method in a subclass!"
     end
 
     # request.path_info
     # => /echo/abc
     def path_info
-      raise NotImplementedError.new("You are supposed to rewrite #path_info in a subclass!")
+      raise NotImplementedError, "You are supposed to rewrite #path_info in a subclass!"
     end
 
     # request.headers["origin"]
     # => http://foo.bar
     def headers
-      raise NotImplementedError.new("You are supposed to rewrite #headers in a subclass!")
+      raise NotImplementedError, "You are supposed to rewrite #headers in a subclass!"
     end
 
     def origin
@@ -46,7 +46,7 @@ module SockJS
     # request.query_string["callback"]
     # => "myFn"
     def query_string
-      raise NotImplementedError.new("You are supposed to rewrite #query_string in a subclass!")
+      raise NotImplementedError, "You are supposed to rewrite #query_string in a subclass!"
     end
 
     def callback

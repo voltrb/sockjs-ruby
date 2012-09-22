@@ -2,8 +2,9 @@
 
 require "forwardable"
 require "sockjs/thin"
+require 'thin'
 
-require_relative "./rack"
+require "sockjs/servers/rack"
 
 module SockJS
   module Thin
@@ -12,14 +13,9 @@ module SockJS
       attr_reader :env
     end
 
+    DUMMY_RESPONSE = [-1, {}, []].freeze
 
-    # This is just to make Rack happy.
-    # For explanation how does it work check
-    # http://macournoyer.com/blog/2009/06/04/pusher-and-async-with-thin
-    DUMMY_RESPONSE ||= [-1, Hash.new, Array.new]
-
-
-    class Response < Response
+    class Response < SockJS::Response
       extend Forwardable
 
       attr_reader :status, :headers, :body
@@ -95,7 +91,6 @@ module SockJS
 
       def initialize
         @status = :created
-        super # TODO: Is this necessary?
       end
 
       def call(body)

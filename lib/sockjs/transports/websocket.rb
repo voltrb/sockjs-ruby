@@ -1,15 +1,13 @@
 # encoding: utf-8
 
-require_relative "./raw_websocket"
+require "sockjs/transports/raw_websocket"
 
 module SockJS
   module Transports
     class WebSocket < RawWebSocket
       extend Forwardable
 
-      # Settings.
-      self.prefix = /[^.]+\/([^.]+)\/websocket$/
-      self.method = "GET"
+      register '/websocket', 'GET'
 
       def disabled?
         !options[:websocket]

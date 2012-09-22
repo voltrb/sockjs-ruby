@@ -38,9 +38,99 @@ require "sockjs/transports/xhr"
 #  end
 #
 #  run MyApp
+#
+#
+#@example
+#
+#  require 'rack/sockjs'
+#
+#  map "/echo", Rack::SockJS.build do |connection|
+#    connection.subscribe do |session, message|
+#      session.send(message)
+#    end
+#  end
+#
+#  run MyApp
+#
+#
+# #or
+#
+#  run Rack::SockJS.build do |connection|
+#    connection.session_open do |session|
+#      session.close(3000, "Go away!")
+#    end
+#  end
 
 module Rack
   class SockJS
+    SERVER_SESSION_REGEXP = %r{/([^/]*)/([^/]*)}
+    DEFAULT_OPTIONS = {
+      :sockjs_url => "http://cdn.sockjs.org/sockjs-#{SockJS::PROTOCOL_VERSION}.min.js"
+    }
+
+    class ResetScriptName
+      def initialize(app)
+        @app = app
+      end
+
+      def call(env)
+        env["PREVIOUS_SCRIPT_NAME"], env["SCRIPT_NAME"] = env["SCRIPT_NAME"], ''
+        result = @app.call(env)
+      ensure
+        env["SCRIPT_NAME"] = env["PREVIOUS_SCRIPT_NAME"]
+      end
+    end
+
+    class ExtractServerAndSession
+      def initialize(app)
+        @app = app
+      end
+
+      def call(env)
+        match = SERVER_SESSION_REGEXP.match(env["SCRIPT_NAME"])
+        env["sockjs.server-id"] = match[1]
+        env["sockjs.session-key"] = match[2]
+        return @app.call(env)
+      end
+    end
+
+    def self.build(options = nil, &block)
+      #TODO refactor Connection to App
+      connection = ::SockJS::Connection.new(&block)
+
+      options ||= {}
+
+      options = DEFAULT_OPTIONS.merge(options)
+      transports = SockJS::Transports.prefix_map
+
+      Rack::Builder.new do
+        use Rack::SockJS::ResetScriptName
+
+        map %r{/iframe.*[.]html?} do
+          run SockJS::Transports::IFrame.new(connection, options)
+        end
+
+        map '/info' do
+          run SockJS::Transports::Info.new(connection, options)
+        end
+
+        map '/websocket' do
+          run SockJS::Transports::RawWebsocket.new(connection, options)
+        end
+
+        map SERVER_SESSION_REGEXP do
+          transports.each_pair(path, app) do
+            map path do
+              use ExtractServerAndSession
+              run app.new(connection, options)
+            end
+          end
+        end
+
+        run SockJS::Transports::WelcomeScreen.new(options)
+      end
+    end
+
     def initialize(app, prefix = "/echo", options = Hash.new, &block)
       @app, @prefix, @options = app, prefix, options
 

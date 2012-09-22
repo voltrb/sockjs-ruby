@@ -1,32 +1,17 @@
 # encoding: utf-8
 
+require 'support/async-test.rb'
+
 module TransportSpecMacros
-  def it_should_have_prefix(prefix)
-    it "should have prefix #{prefix}" do
-      described_class.prefix.should == prefix
-    end
-  end
-
-  def it_should_match_path(path)
-    it "should match path #{path}" do
-      described_class.prefix.should match(path)
-    end
-  end
-
-  def it_should_have_method(method)
-    it "should have method #{method}" do
-      described_class.method.should == method
-    end
-  end
-
   def transport_handler_eql(path, method)
     describe SockJS::Transport do
-      describe ".handler(#{path}, #{method})" do
-        it "should return #{described_class}" do
-          transports = SockJS::Transport.handlers(path)
-          transports.find { |transport|
-            transport.method == method
-          }.should == described_class
+      describe "transports[#{path}]" do
+        let :method_map do
+          SockJS::Transport.prefix_map[path].method_map
+        end
+
+        it "should have a #{described_class} at #{method}" do
+          method_map[method].should == described_class
         end
       end
     end
@@ -44,6 +29,10 @@ class FakeRequest < SockJS::Thin::Request
 
   def initialize(env = Hash.new)
     self.env.merge!(env)
+  end
+
+  def session_key=(value)
+    @env['sockjs.session-key'] = value
   end
 
   def env

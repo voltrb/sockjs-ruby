@@ -7,9 +7,7 @@ require "sockjs"
 require "sockjs/transports/websocket"
 
 describe SockJS::Transports::WebSocket do
-  it_should_match_path  "server/session/websocket"
-  it_should_have_method "GET"
-  transport_handler_eql "a/b/websocket", "GET"
+  transport_handler_eql "/websocket", "GET"
 
   # TODO: This should be a mixin.
   def transport(options = Hash.new)
