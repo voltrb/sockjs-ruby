@@ -4,36 +4,20 @@ require "sockjs/transports/raw_websocket"
 
 module SockJS
   module Transports
-    class WebSocket < RawWebSocket
+    class WebSocket < SessionTransport
+      include WebSocketHandling
       extend Forwardable
 
-      register '/websocket', 'GET'
+      register 'GET', %r{/websocket}
 
       def disabled?
         !options[:websocket]
       end
 
-      # Handlers.
-      def handle_open(request)
-        SockJS.debug "Opening WS connection."
-        match = request.path_info.match(self.class.prefix)
-        # Here, the session_id is not important at all,
-        # it's all about the actual connection object.
-        session = self.connection.create_session(@ws.object_id.to_s, self)
-        session.ws = @ws
-        session.buffer = Buffer.new # This is a hack for the bloody API. Rethinking and refactoring required!
-        session.transport = self
-
-        # Send the opening frame.
-        session.open!
-        session.buffer = Buffer.new(:open)
-        session.check_status
-
-        session.process_buffer # Run the app (connection.session_open hook).
-      end
-
-      def handle_message(request, event)
+      def handle_message(ws, request, event)
         message = event.data
+
+        session = get_session(session_key(ws))
 
         # Unlike other transports, the WS one is supposed to ignore empty messages.
         unless message.empty?
@@ -52,22 +36,18 @@ module SockJS
         @ws.close # Close the connection abruptly, no closing frame.
       end
 
-      # There are two distinct situations
-      # when this handler will be called:
+      # There are two distinct situations when this handler will be called:
       #
       # 1) User app closes the response.
       # 2) Client closes the response
       #
-      # In either case, this is called
-      # AFTER the actual connection is
-      # closed (@ws.close), so there is
-      # not much we can do, only to mark
-      # the session as terminated and
-      # delete it after the 5s timeout.
+      # In either case, this is called AFTER the actual connection is closed
+      # (@ws.close), so there is not much we can do, only to mark the session
+      # as terminated and delete it after the 5s timeout.
       #
-      # Furthemore current API doesn't
-      # make it possible to get session
-      def handle_close(request, event)
+      # Furthemore current API doesn't make it possible to get session
+      #
+      def handle_close(ws, request, event)
         SockJS.debug "WebSocket#handle_close"
       #   SockJS.debug "Closing WS connection."
       #

@@ -40,31 +40,31 @@ module SockJS
         options = self.options
         ::Rack::Builder.new do
           map '/echo' do
-            run ::Rack::SockJS.new(options) do |connection|
+            run ::Rack::SockJS.new(options){|connection|
               connection.subscribe do |session, message|
                 SockJS.debug "\033[0;31;40m[Echo]\033[0m message: #{message.inspect}, session: #{session.object_id}"
                 session.send(message)
               end
-            end
+            }
           end
 
 
           map '/disabled_websocket_echo' do
-            run ::Rack::SockJS.new(options.merge(:websocket => false) do |connection|
+            run ::Rack::SockJS.new(options.merge(:websocket => false)){|connection|
               connection.subscribe do |session, message|
                 SockJS.debug "\033[0;31;40m[Echo]\033[0m message: #{message.inspect}, session: #{session.object_id}"
                 session.send(message)
               end
-            end
+            }
           end
 
           map '/close' do
-            run ::Rack::SockJS.new(options) do |connection|
+            run ::Rack::SockJS.new(options) {|connection|
               connection.session_open do |session, message|
                 SockJS.debug "\033[0;31;40m[Close]\033[0m closing the session ..."
                 session.close(3000, "Go away!")
               end
-            end
+            }
           end
 
           run MyHelloWorld.new

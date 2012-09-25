@@ -138,16 +138,19 @@ describe "XHR" do
     transport_handler_eql "/xhr_send", "POST"
 
     describe "#handle(request)" do
+      let(:session) do
+        FakeSession.new({}, :open)
+      end
+
       let(:transport) do
         connection = SockJS::Connection.new {}
-        session = FakeSession.new({}, :open)
         connection.sessions["b"] = session
         described_class.new(connection, {})
       end
 
       let(:request) do
         FakeRequest.new.tap do |request|
-          request.session_key = Array.new(7) { rand(256) }.pack("C*").unpack("H*").first
+          request.session_key = rand(1 << 32).to_s
           request.path_info = "/xhr_send"
         end
       end
@@ -184,8 +187,6 @@ describe "XHR" do
         end
 
         it "should call session.receive_message(request, data)" do
-          # TODO: Come up with a better way how to test it.
-          session = transport.connection.sessions["b"]
           session.stub!(:receive_message)
 
           response
@@ -273,6 +274,7 @@ describe "XHR" do
       let(:request) do
         FakeRequest.new.tap do |request|
           request.path_info = "/a/b/xhr_streaming"
+          request.session_key = "b"
         end
       end
 

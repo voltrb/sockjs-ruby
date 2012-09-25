@@ -21,7 +21,7 @@ describe SockJS::Transports::JSONP do
     end
 
     let(:request) do
-      @request ||= FakeRequest.new.tap do |request|
+      FakeRequest.new.tap do |request|
         request.path_info = "/echo/a/b/jsonp"
       end
     end
@@ -32,7 +32,7 @@ describe SockJS::Transports::JSONP do
 
     context "with callback specified" do
       let(:request) do
-        @request ||= FakeRequest.new.tap do |request|
+        FakeRequest.new.tap do |request|
           request.path_info = "/jsonp"
           request.callback = "clbk"
           request.session_key = "b"
@@ -225,7 +225,6 @@ describe SockJS::Transports::JSONPSend do
           end
 
           it "should return error message in the body" do
-            response # Run the handler.
             response.chunks.last.should match(/Session is not open\!/)
           end
         end

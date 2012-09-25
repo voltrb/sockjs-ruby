@@ -6,8 +6,8 @@ module SockJS
   module Transports
 
     # This is the receiver.
-    class JSONP < Transport
-      register '/jsonp', 'GET'
+    class JSONP < SessionTransport
+      register 'GET', '/jsonp'
 
       #XXX May cause issues with single transport
       #Move callback_function to response?
@@ -35,7 +35,7 @@ module SockJS
             end
           end
         else
-          response(request, 500) do |response|
+          sessionless_response(request, 500) do |response|
             response.set_content_type(:html)
             response.write('"callback" parameter required')
           end
@@ -52,8 +52,8 @@ module SockJS
     end
 
     # This is the sender.
-    class JSONPSend < Transport
-      register '/jsonp_send', 'POST'
+    class JSONPSend < SessionTransport
+      register 'POST', '/jsonp_send'
 
       # Handler.
       def handle_request(request)

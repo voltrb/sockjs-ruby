@@ -12,7 +12,6 @@ module SockJS
           callback.call(*args)
         end
       else
-        p self
         raise ArgumentError.new("There's no callback #{name.inspect}. Available callbacks: #{self.callbacks.keys.inspect}")
       end
     end

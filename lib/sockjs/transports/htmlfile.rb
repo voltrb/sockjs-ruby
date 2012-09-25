@@ -5,8 +5,8 @@ require "sockjs/transport"
 
 module SockJS
   module Transports
-    class HTMLFile < Transport
-      register('/htmlfile', 'GET')
+    class HTMLFile < SessionTransport
+      register 'GET', '/htmlfile'
 
       def session_class
         SockJS::Session
@@ -30,14 +30,12 @@ module SockJS
       # Handler.
       def handle(request)
         if request.callback
-          # TODO: Investigate why we can't use __DATA__
-
           # Safari needs at least 1024 bytes to parse the website. Relevant:
           #   http://code.google.com/p/browsersec/wiki/Part2#Survey_of_content_sniffing_behaviors
           html = HTML_TEMPLATE.gsub("{{ callback }}", request.callback)
           body = html + (" " * (1024 - html.bytesize)) + "\r\n\r\n"
 
-          response(request, 200, session: :create) do |response, session|
+          response(request, 200, :session => :create) do |response, session|
             response.set_content_type(:html)
             response.set_no_cache
             response.set_session_id(request.session_id)
@@ -51,7 +49,7 @@ module SockJS
             session.wait(response)
           end
         else
-          response(request, 500) do |response|
+          sessionless_response(request, 500) do |response|
             response.set_content_type(:html)
             response.write('"callback" parameter required')
           end

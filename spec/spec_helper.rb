@@ -6,12 +6,25 @@ module TransportSpecMacros
   def transport_handler_eql(path, method)
     describe SockJS::Transport do
       describe "transports[#{path}]" do
-        let :method_map do
-          SockJS::Transport.prefix_map[path].method_map
+        let :route_set do
+          mock("Route Set")
+        end
+
+        let :connection do
+          mock("Connection")
+        end
+
+        let :options do
+          {}
+        end
+
+        let :path_matcher do
+
         end
 
         it "should have a #{described_class} at #{method}" do
-          method_map[method].should == described_class
+          route_set.should_receive(:add_route).with(instance_of(described_class), hash_including(:path_info, :request_method => method), {})
+          described_class.add_route(route_set, connection, options)
         end
       end
     end
@@ -32,7 +45,8 @@ class FakeRequest < SockJS::Thin::Request
   end
 
   def session_key=(value)
-    @env['sockjs.session-key'] = value
+    @env['rack.routing_args'] ||= {}
+    @env['rack.routing_args']['session-key'] = value
   end
 
   def env

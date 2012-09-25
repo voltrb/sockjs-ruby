@@ -51,6 +51,7 @@ module SockJS
       @response.finish if @response && ((frame and frame.match(/^c\[\d+,/)) || no_content)
     end
 
+    #WHY?  GOD THE HUMANITY, WHY?
     def with_response_and_transport(response, transport, &block)
       raise ArgumentError.new("Response must not be nil!") if response.nil?
       raise ArgumentError.new("Transport must not be nil!") if transport.nil?
@@ -65,6 +66,7 @@ module SockJS
       @response, @transport = response, transport
       block.call
 
+    ensure
       if prev_trans && (prev_trans.is_a?(SockJS::Transports::XHRStreamingPost) || prev_trans.is_a?(SockJS::Transports::EventSource) || prev_trans.is_a?(SockJS::Transports::HTMLFile)) # TODO: #streaming? / #polling? / #waiting? ... actually no, just define this only for this class, the other transports use SessionWitchCachedMessages (but don't forget that it inherits from this one).
         SockJS.debug "with_response: reassigning response and #{prev_trans.class} (#{prev_trans.object_id}) ..."
         @response, @transport = prev_resp, prev_trans

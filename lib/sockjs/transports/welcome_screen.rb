@@ -5,6 +5,7 @@ require "sockjs/transport"
 module SockJS
   module Transports
     class WelcomeScreen < Transport
+      register 'GET', '/'
       def handle(request)
         response(request, 200) do |response|
           response.set_content_type(:plain)

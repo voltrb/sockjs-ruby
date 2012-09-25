@@ -22,10 +22,7 @@ describe SockJS::Transports::HTMLFile do
     end
 
     let(:request) do
-      @request ||= begin
-        request = FakeRequest.new
-        request
-      end
+      FakeRequest.new
     end
 
     let(:response) do
@@ -40,6 +37,7 @@ describe SockJS::Transports::HTMLFile do
         @request ||= FakeRequest.new.tap do |request|
           request.callback = "clbk"
           request.path_info = '/a/b/htmlfile'
+          request.session_key = 'b'
         end
       end
 

@@ -4,8 +4,8 @@ require "sockjs/transport"
 
 module SockJS
   module Transports
-    class EventSource < Transport
-      register('/eventsource', 'GET')
+    class EventSource < SessionTransport
+      register 'GET', '/eventsource'
 
       def session_class
         SockJS::Session

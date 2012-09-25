@@ -73,7 +73,7 @@ task :protocol_test, [:port] do |task, args|
   end
 
   SockJS.debug!
-  SockJS.debug "Available handlers: #{::SockJS::Transport.subclasses.inspect}"
+  SockJS.debug "Available handlers: #{::SockJS::Transport.transports.inspect}"
 
   protocol_version = args[:version] || SockJS::PROTOCOL_VERSION
   options = {sockjs_url: "http://cdn.sockjs.org/sockjs-#{protocol_version}.min.js"}

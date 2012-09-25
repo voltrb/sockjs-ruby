@@ -43,15 +43,14 @@ module SockJS
   class HttpError < StandardError
     attr_reader :status, :message
 
-    # TODO: Refactor to (status, message, &block)
-    def initialize(*args, &block)
-      @message = args.last
-      @status = (args.length >= 2) ? args.first : 500
+    def initialize(status, message, &block)
+      @message = message
+      @status = status
       @block = block
     end
 
     def to_response(adapter, request)
-      adapter.response(request, self.status) do |response|
+      adapter.sessionless_response(request, self.status) do |response|
         response.set_content_type(:plain)
         @block.call(response) if @block
         response.write(self.message) if self.message

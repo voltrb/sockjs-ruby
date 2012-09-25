@@ -24,55 +24,57 @@ Gem::Specification.new do |s|
   s.add_dependency "thin"
   s.add_dependency "json"
   s.add_dependency "faye-websocket", "~> 0.4.3"
+  s.add_dependency "rack-mount", "~> 0.8.3"
 
   # Files
-  s.files = `git ls-files`.split("\n")
+  s.files = %w{
+    LICENCE
+    README.textile
+    lib/rack/sockjs.rb
+    lib/sockjs.rb
+    lib/sockjs/buffer.rb
+    lib/sockjs/callbacks.rb
+    lib/sockjs/connection.rb
+    lib/sockjs/examples/protocol_conformance_test.rb
+    lib/sockjs/faye.rb
+    lib/sockjs/protocol.rb
+    lib/sockjs/servers/rack.rb
+    lib/sockjs/servers/request.rb
+    lib/sockjs/servers/response.rb
+    lib/sockjs/servers/thin.rb
+    lib/sockjs/session.rb
+    lib/sockjs/thin.rb
+    lib/sockjs/transport.rb
+    lib/sockjs/transports/eventsource.rb
+    lib/sockjs/transports/htmlfile.rb
+    lib/sockjs/transports/iframe.rb
+    lib/sockjs/transports/info.rb
+    lib/sockjs/transports/jsonp.rb
+    lib/sockjs/transports/raw_websocket.rb
+    lib/sockjs/transports/websocket.rb
+    lib/sockjs/transports/welcome_screen.rb
+    lib/sockjs/transports/xhr.rb
+    lib/sockjs/version.rb
+    spec/sockjs/buffer_spec.rb
+    spec/sockjs/protocol_spec.rb
+    spec/sockjs/session_spec.rb
+    spec/sockjs/transport_spec.rb
+    spec/sockjs/transports/eventsource_spec.rb
+    spec/sockjs/transports/htmlfile_spec.rb
+    spec/sockjs/transports/iframe_spec.rb
+    spec/sockjs/transports/jsonp_spec.rb
+    spec/sockjs/transports/websocket_spec.rb
+    spec/sockjs/transports/welcome_screen_spec.rb
+    spec/sockjs/transports/xhr_spec.rb
+    spec/sockjs/version_spec.rb
+    spec/sockjs_spec.rb
+    spec/spec_helper.rb
+    spec/support/async-test.rb
+  }
   s.require_paths = ["lib"]
 
   s.extra_rdoc_files = ["README.textile"]
 
   # RubyForge
   s.rubyforge_project = "sockjs"
-
-  # First steps
-  s.post_install_message = %Q{
-=> \e[31mWelcome to SockJS #{SockJS::VERSION}!\e[0m
-
-[\e[32mBasic Info\e[0m]
-
-\e[33m*\e[0m This release is compatible with SockJS protocol \e[34m#{SockJS::PROTOCOL_VERSION}\e[0m.
-\e[33m*\e[0m This is a first public release, consider it experimental.
-\e[33m*\e[0m If you encounter any problems, please open an issue on GitHub.
-
-
-[\e[32mBasic Example\e[0m]
-
-=> \e[33mClient Side\e[0m
-
-\e[36m<\e[0m\e[31mscript\e[0m \e[36msrc\e[0m=\e[34m"http://cdn.sockjs.org/sockjs-0.2.1.min.js"\e[36m>\e[0m\e[36m</\e[0m\e[31mscript\e[36m>\e[0m
-
-\e[36m<\e[0m\e[31mscript\e[36m>\e[0m
-  \e[32mvar\e[0m sock = \e[32mnew SockJS\e[0m(\e[34m"http://mydomain.com/my_prefix"\e[0m);
-
-  \e[35m// Events: onopen, onmessage, onclose.\e[0m
-  sock.onmessage = \e[32mfunction\e[0m(e) {
-    console.log(\e[34m"message"\e[0m, e.data);
-  };
-\e[36m</\e[0m\e[31mscript\e[36m>\e[0m
-
-
-=> \e[33mServer Side\e[0m
-
-\e[35m# Run one SockJS app on /echo.\e[0m
-use \e[32mSockJS\e[0m, \e[34m"/echo"\e[0m \e[31mdo\e[0m \e[31m|\e[36mconnection\e[31m|\e[0m
-  connection.subscribe \e[31mdo\e[0m \e[31m|\e[36msession, message\e[31m|\e[0m
-    session.send(message)
-  \e[31mend\e[0m
-\e[31mend\e[0m
-
-\e[35m# Your main app, anything else than /echo/*.\e[0m
-run \e[32mMyMainApp\e[0m.\e[32mnew\e[0m
-
-... for more info check README!
-  }
 end
