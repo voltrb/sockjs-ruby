@@ -24,12 +24,14 @@ Gem::Specification.new do |s|
   s.add_dependency "thin"
   s.add_dependency "json"
   s.add_dependency "faye-websocket", "~> 0.4.3"
+  s.add_dependency "regin", "~> 0.3.8"
   s.add_dependency "rack-mount", "~> 0.8.3"
 
   # Files
   s.files = %w{
     LICENCE
     README.textile
+    lib/alter_ego.rb
     lib/rack/sockjs.rb
     lib/sockjs.rb
     lib/sockjs/buffer.rb

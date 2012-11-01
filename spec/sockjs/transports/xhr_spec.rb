@@ -20,7 +20,7 @@ describe "XHR" do
     describe "#handle(request)" do
       let(:transport) do
         connection = SockJS::Connection.new {}
-        session = FakeSession.new({}, :open)
+        session = FakeSession.new({})
         connection.sessions["b"] = session
         described_class.new(connection, {})
       end
@@ -139,7 +139,7 @@ describe "XHR" do
 
     describe "#handle(request)" do
       let(:session) do
-        FakeSession.new({}, :open)
+        FakeSession.new({})
       end
 
       let(:transport) do
@@ -204,7 +204,9 @@ describe "XHR" do
 
         it "should return error message in the body" do
           response # Run the handler.
-          response.chunks.last.should match(/Session is not open\!/)
+          #Soooo: response chunks gets filled by async.callback - need to make
+          #sure that's been triggered
+          request.chunks.last.should match(/Session is not open\!/)
         end
       end
     end
@@ -279,6 +281,7 @@ describe "XHR" do
       end
 
       let(:response) do
+        p :xprt => transport
         transport.handle(request)
       end
 

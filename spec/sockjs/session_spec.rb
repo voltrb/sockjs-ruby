@@ -7,17 +7,13 @@ require "sockjs"
 require "sockjs/session"
 require "sockjs/transports/xhr"
 
-class Session < SockJS::Session
-  include ResetSessionMixin
+#Comment:
+#These specs came to me way to interested in the internals of Session
+#Policy has got to be that any spec that fails because e.g. it wants to know
+#what state Session is in is a fail.  Okay to spec that Session should be able
+#to respond to message X after Y, though.
 
-  def set_status_for_tests(status)
-    @buffer = SockJS::Buffer.new(status)
-    @status = status
-    self
-  end
-end
-
-describe Session do
+describe SockJS::Session do
   around :each do |example|
     EM.run do
       example.run
@@ -39,43 +35,55 @@ describe Session do
   end
 
   let :request do
-    FakeRequest.new
+    FakeRequest.new.tap do|req|
+      req.data = ""
+    end
   end
 
   let :response do
     transport.response_class.new(request, 200)
   end
 
-  let :buffer do
-    SockJS::Buffer.new
-  end
-
   let :session do
     sess = described_class.new({:open => []})
-    sess.transport = transport
-    sess.response = response
-    sess.buffer = buffer
     sess
   end
 
-  describe "#initialize(transport, callback)" do
-    it "should take two arguments" do
-      expect { described_class.new(1, 2) }.to_not raise_error(ArgumentError)
+  let :opening_session do
+    session.receive_request(request, transport)
+    session
+  end
+
+  let :open_session do
+    opening_session.check_status
+    opening_session
+  end
+
+  let :closing_session do
+    open_session.close
+    open_session
+  end
+
+  let :closed_session do
+    closing_session.mark_to_be_garbage_collected
+    closing_session
+  end
+
+  describe "#initialize(callback)" do
+    it "should take one arguments" do
+      expect { described_class.new(2) }.to_not raise_error(ArgumentError)
     end
   end
 
   describe "#send(data, *args)" do
-    before(:each) do
-      session.buffer = SockJS::Buffer.new(:open)
-    end
-
-    it "should clear the message buffer" do
-      session.send("test")
-      session.buffer.messages.should be_empty
+    it "should clear the outbound messages list" do
+      open_session.send("test")
+      open_session.receive_request(request, transport)
+      open_session.outbox.should be_empty
     end
 
     it "should pass optional arguments to transport.format_frame" do
-      session.send("test", test: true)
+      open_session.send("test", test: true)
     end
   end
 
@@ -103,202 +111,96 @@ describe Session do
     it "should return a frame"
   end
 
-  describe "#create_response(&block)" do
-    it "should execute the block" do
-      expect {
-        session.create_response do
-          raise "Test"
-        end
-      }.to raise_error("Test")
-    end
-
-    it "should return a frame", :pending => :valid do
-      sub = session.set_status_for_tests(:open)
-      ret = sub.create_response {}
-      ret.should eql("a[]")
-    end
-
-    it "should return a closing frame if SockJS::CloseError occured" do
-      sub = session.set_status_for_tests(:open)
-      ret = sub.create_response do
-        raise SockJS::CloseError.new(3000, "test")
-      end
-      ret.should eql("c[3000,\"test\"]")
-    end
-  end
-
   describe "#check_status" do
     before(:each) do
-      @session = session.set_status_for_tests(:opening)
+      opening_session
 
-      def @session.callback_run
+      def session.callback_run
         @callback_run
       end
 
-      def @session.callback_run=(status)
+      def session.callback_run=(status)
         @callback_run = status
       end
 
-      @session.callbacks[:open] << Proc.new do |session|
+      session.callbacks[:open] << Proc.new do |session|
         session.callback_run = true
       end
     end
 
     it "should execute the open callback" do
-      @session.check_status
-      @session.callback_run.should be_true
-    end
-
-    it "should change status fro opening to open" do
-      @session.check_status
-      @session.should be_open
+      session.check_status
+      session.callback_run.should be_true
     end
 
     it "should do nothing if status isn't opening" do
-      @session.set_status_for_tests(:closed)
+      session.state = :closed
 
-      @session.check_status
-      @session.should_not be_open
-      @session.callback_run.should be_false
+      session.should_not be_open
+      session.callback_run.should be_false
     end
   end
 
-  describe "#open!(*args)" do
+  describe "opening a session" do
     it "should change status to opening" do
-      @session = session
-      @session.open!
-      @session.should be_opening
+      opening_session
+      session.should be_opening
     end
 
     it "should call session.set_timer" do
-      @session = session
-      @session.should_receive(:set_timer)
-      @session.open!
-    end
-
-    it "should open the buffer", :pending => :valid do
-      @session = session
-      @session.open!
-      @session.buffer.to_frame.should eql("o")
+      session.should_receive(:set_timer)
+      opening_session
     end
 
     it "should call the session.finish method" do
-      @session = session.set_status_for_tests(:open)
-      @session.should_receive(:finish)
+      opening_session
+      session.check_status
+      session.should_receive(:finish)
 
-      @session.close
+      session.close
     end
   end
 
   describe "#close(status, message)" do
-    it "should take either status and message or just a status or no argument at all" do
-      -> { session.close }.should_not raise_error(ArgumentError)
-      -> { session.close(3000) }.should_not raise_error(ArgumentError)
-      -> { session.close(3000, "test") }.should_not raise_error(ArgumentError)
+    shared_examples_for "responding to #close" do
+      it "should take no argument at all" do
+        expect { subject.close }.not_to raise_error(ArgumentError)
+      end
+      it "should take just a status" do
+        expect { subject.close(3000) }.not_to raise_error(ArgumentError)
+      end
+      it "should take status and message" do
+        expect { subject.close(3000, "test") }.not_to raise_error(ArgumentError)
+      end
+
     end
 
     it "should fail if the user is trying to close a newly created instance" do
-      -> { session.close }.should raise_error(RuntimeError)
+      expect { session.close }.to raise_error(RuntimeError)
     end
 
-    it "should set status to closing" do
-      @session = session.set_status_for_tests(:open)
-      def @session.reset_close_timer; end
-      @session.close
-      @session.should be_closing
-    end
+    describe "open session" do
+      subject{ open_session }
 
-    it "should set frame to the close frame" do
-      @session = session.set_status_for_tests(:open)
-      @session.close
-      @session.buffer.to_frame.should eql("c[3000,\"Go away!\"]")
-    end
+      it_should_behave_like "responding to #close"
 
-    it "should set pass the exit status to the buffer" do
-      @session = session.set_status_for_tests(:open)
-      @session.close
-      @session.buffer.to_frame.should match(/c\[3000,/)
-    end
+      it "should call the session.finish method" do
+        subject.should_receive(:finish)
 
-    it "should set pass the exit message to the buffer" do
-      @session = session.set_status_for_tests(:open)
-      @session.close
-      @session.buffer.to_frame.should match(/"Go away!"/)
-    end
-
-    it "should call the session.finish method" do
-      @session = session.set_status_for_tests(:open)
-      @session.should_receive(:finish)
-
-      @session.close
-    end
-  end
-
-  describe "#newly_created?" do
-    it "should return true after a new session is created" do
-      session.should be_newly_created
-    end
-
-    it "should return false after a session is open" do
-      session.open!
-      session.should_not be_newly_created
-    end
-  end
-
-  describe "#opening?" do
-    it "should return false after a new session is created" do
-      session.should_not be_opening
-    end
-
-    it "should return true after a session is open" do
-      session.open!
-      session.should be_opening
-    end
-  end
-
-  describe "#open?" do
-    it "should return false after a new session is created" do
-      session.should_not be_open
-    end
-
-    it "should return true after a session is open" do
-      session.open!
-      session.check_status
-      session.should be_open
-    end
-  end
-
-  describe "#closing?" do
-    before do
-      @session = session
-
-      def @session.reset_close_timer
+        subject.close
       end
     end
 
-    it "should return false after a new session is created" do
-      @session.should_not be_closing
-    end
+    describe "closed session" do
+      subject{ closed_session }
 
-    it "should return true after session.close is called" do
-      @session.set_status_for_tests(:open)
+      it_should_behave_like "responding to #close"
 
-      @session.close
-      @session.should be_closing
-    end
-  end
-
-  describe "#closed?" do
-    it "should return false after a new session is created" do
-      session.should_not be_closed
-    end
-
-    it "should return true after session.close is called" do
-      @session = session.set_status_for_tests(:open)
-      @session.should_not be_closed
-
-      @session.close
-      @session.should be_closed
+      it "should not change the close frame" do
+        original_close_frame = subject.closing_frame
+        subject.close(3333, "Hilarity!")
+        subject.closing_frame.should == original_close_frame
+      end
     end
   end
 end
@@ -307,7 +209,6 @@ end
 
 
 class SessionWitchCachedMessages < SockJS::SessionWitchCachedMessages
-  include ResetSessionMixin
 end
 
 describe SessionWitchCachedMessages do

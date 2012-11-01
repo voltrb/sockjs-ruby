@@ -1,0 +1,20 @@
+Or, lack thereof: notes as I try to puzzle out the intended and ideal designs for this gem
+
+I think:
+
+Session is the ongoing communication with a particular client
+
+Transport is the particular flavor of communication - it should manage the
+interactions between requests, response, and session.
+
+Part of the challenge here is that we're emulating one kind of FSM using
+several others - a Transport is theoretically the component responsible for the
+translation.
+
+Specific perverse case: the EventSource transport:
+
+Client long-GETs /eventsource - that's it's receiving pipe.
+Client POSTs to /xhr_send to send data - but those requests receive empty 204
+
+So, the *session* needs to remember what Transport is in play, and the
+Transport handling a particular request needs to defer to the owning transport.

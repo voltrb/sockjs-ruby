@@ -27,31 +27,35 @@ module SockJS
 </html>
       EOB
 
-      # Handler.
-      def handle(request)
-        # TODO: Investigate why we can't use __DATA__
-        body = BODY.gsub("{{ sockjs_url }}", options[:sockjs_url])
+      def setup_response(response)
+        response.set_content_type(:html)
+        response.set_header("ETag", self.etag(body))
+        response.set_cache_control
+        response.write(body)
+        response
+      end
 
-        if request.fresh?(self.etag(body))
+      def body
+        @body ||= BODY.gsub("{{ sockjs_url }}", options[:sockjs_url])
+      end
+
+      def digest
+        @digest ||= Digest::MD5.new
+      end
+
+      def etag
+        '"' + digest.hexdigest(body) + '"'
+      end
+
+      # Handler.
+      def handle_request(request)
+
+        if request.fresh?(etag)
           SockJS.debug "Content hasn't been modified."
           empty_response(request, 304)
         else
-          response(request, 200) do |response|
-            response.set_content_type(:html)
-            response.set_header("ETag", self.etag(body))
-            response.set_cache_control
-            response.write(body)
-          end
+          super
         end
-      end
-
-      def etag(body)
-        '"' + self.digest.hexdigest(body) + '"'
-      end
-
-      protected
-      def digest
-        @digest ||= Digest::MD5.new
       end
     end
   end

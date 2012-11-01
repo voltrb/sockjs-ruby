@@ -51,8 +51,12 @@ module SockJS
         SockJS::WebSocketSession
       end
 
-      def sesssion_key(ws)
+      def session_key(ws)
         ws.object_id.to_s
+      end
+
+      def get_session(key)
+        connection.get_session(key)
       end
 
       def check_invalid_request_or_disabled_websocket(request)
@@ -76,27 +80,39 @@ module SockJS
         ws.extend(WSDebuggingMixin)
 
         ws.onopen = lambda do |event|
-          self.handle_open(ws, request)
+          rescue_errors do
+            self.handle_open(ws, request)
+          end
         end
 
         ws.onmessage = lambda do |event|
-          SockJS.debug "WS data received: #{event.data.inspect}"
-          self.handle_message(ws, request, event)
+          rescue_errors do
+            SockJS.debug "WS data received: #{event.data.inspect}"
+            self.handle_message(ws, request, event)
+          end
         end
 
         ws.onclose = lambda do |event|
-          SockJS.debug "Closing WebSocket connection (code: #{event.code}, reason: #{event.reason.inspect})"
-          self.handle_close(ws, request, event)
+          rescue_errors do
+            SockJS.debug "Closing WebSocket connection (code: #{event.code}, reason: #{event.reason.inspect})"
+            self.handle_close(ws, request, event)
+          end
         end
       rescue SockJS::HttpError => error
         error.to_response(self, request)
+      end
+
+      def rescue_errors
+        yield
+      rescue Object => error
+        SockJS.debug error.inspect
       end
 
       def handle_open(ws, request)
         SockJS.debug "Opening WS connection."
         # Here, the session_id is not important at all,
         # it's all about the actual connection object.
-        session = self.connection.create_session(@ws.object_id.to_s, self)
+        session = connection.create_session(ws.object_id.to_s, self)
         session.ws = ws
         session.buffer = buffer_class.new # This is a hack for the bloody API. Rethinking and refactoring required!
         session.transport = self
@@ -109,6 +125,16 @@ module SockJS
         session.process_buffer # Run the app (connection.session_open hook).
       end
 
+      # Close the connection without sending the closing frame.
+      def handle_close(ws, request, event)
+        SockJS.debug "Closing WS connection."
+        session = get_session(session_key(ws))
+        session.close if session
+      rescue SockJS::SessionUnavailableError
+        SockJS.debug "Session unavailable - assuming server app closed the session already"
+        #Not really a problem - we assume that the user app closed the session
+      end
+
       def format_frame(payload)
         raise TypeError.new("Payload must not be nil!") if payload.nil?
 
@@ -119,7 +145,7 @@ module SockJS
     class RawWebSocket < Transport
       include WebSocketHandling
 
-      register 'GET', '/websocket'
+      register 'GET', 'websocket'
 
       def buffer_class
         RawBuffer
@@ -139,7 +165,7 @@ module SockJS
           session.receive_message(request, message)
 
           # Send encoded messages in an array frame.
-          messages = @session.process_buffer
+          messages = session.process_buffer
           if messages && messages.start_with?("a[") # We don't have any framing, this is obviously utter bollocks
             SockJS.debug "Messages to be sent: #{messages.inspect}"
             session.send_data(messages)
@@ -150,12 +176,6 @@ module SockJS
         ws.close # Close the connection abruptly, no closing frame.
       end
 
-      # Close the connection without sending the closing frame.
-      def handle_close(ws, request, event)
-        SockJS.debug "Closing WS connection."
-        session = get_session(session_key(ws))
-        session.close
-      end
     end
   end
 end

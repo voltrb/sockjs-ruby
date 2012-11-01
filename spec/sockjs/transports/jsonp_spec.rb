@@ -116,7 +116,7 @@ describe SockJS::Transports::JSONPSend do
 
     let(:transport) do
       connection = SockJS::Connection.new {}
-      connection.sessions["b"] = FakeSession.new(Hash.new, :open)
+      connection.sessions["b"] = FakeSession.new(Hash.new) #, :open)
 
       described_class.new(connection, Hash.new)
     end

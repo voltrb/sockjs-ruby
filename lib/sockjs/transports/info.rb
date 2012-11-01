@@ -6,16 +6,14 @@ module SockJS
   module Transports
     class Info
       class Get < Transport
-        register 'GET', "/info"
+        register 'GET', "info"
         # Handler.
-        def handle(request)
-          response(request, 200) do |response|
-            response.set_content_type(:json)
-            response.set_access_control(request.origin)
-            response.set_allow_options_post
-            response.set_no_cache
-            response.write(self.info.to_json)
-          end
+        def setup_response(response)
+          response.set_content_type(:json)
+          response.set_access_control(request.origin)
+          response.set_allow_options_post
+          response.set_no_cache
+          response.write(self.info.to_json)
         end
 
         def info
@@ -33,16 +31,20 @@ module SockJS
       end
 
       class Options < Transport
-        register 'OPTIONS', '/info'
+        register 'OPTIONS', 'info'
 
-        def handle(request)
-          response(request, 204) do |response|
-            response.set_allow_options_get
-            response.set_cache_control
-            response.set_access_control(request.origin)
-            response.set_session_id(request.session_id)
-            response.write_head
-          end
+        def setup_response(response)
+          response.set_allow_options_get
+          response.set_cache_control
+          response.set_access_control(request.origin)
+          response.set_session_id(request.session_id)
+          response.write_head
+        end
+
+        def handle_request(request)
+          response = build_response(request, 204)
+          response.finish
+          return response
         end
       end
     end

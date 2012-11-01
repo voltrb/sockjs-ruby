@@ -52,6 +52,7 @@ class FakeRequest < SockJS::Thin::Request
   def env
     @env ||= {
       "async.callback" => Proc.new do |status, headers, body|
+        p :running_callback
         @chunks = Array.new
 
         # This is so we can test it.
@@ -61,7 +62,9 @@ class FakeRequest < SockJS::Thin::Request
           next if chunk == "0\r\n\r\n"
           @chunks << chunk.split("\r\n").last
         end
-      end
+      end,
+
+      "async.close" => EventMachine::DefaultDeferrable.new
     }
   end
 
@@ -84,26 +87,8 @@ end
 
 require "sockjs"
 require "sockjs/session"
-require "sockjs/buffer"
-
-module ResetSessionMixin
-  def initialize(callbacks = Hash.new, status = :created)
-    super(callbacks)
-    @status = status
-  end
-
-  def buffer
-    @buffer ||= SockJS::Buffer.new
-  end
-
-  def reset_close_timer
-    mark_to_be_garbage_collected
-  end
-end
 
 class FakeSession < SockJS::Session
-  include ResetSessionMixin
-
   def set_timer
   end
 

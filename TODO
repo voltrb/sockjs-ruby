@@ -13,3 +13,6 @@ Study and document relationship of actors in the responses
 Why is Rack::SockJS difference from SockJS::Connection?  Merge or document
 
 Override pattern for get_session (or at least find_session)
+
+format_frame/1 -> format_frame/2
+open!/0 -> open!/2

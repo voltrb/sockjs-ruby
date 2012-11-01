@@ -8,10 +8,14 @@ module SockJS
       include WebSocketHandling
       extend Forwardable
 
-      register 'GET', %r{/websocket}
+      register 'GET', 'websocket'
 
       def disabled?
         !options[:websocket]
+      end
+
+      def buffer_class
+        Buffer
       end
 
       def handle_message(ws, request, event)
@@ -34,31 +38,6 @@ module SockJS
       rescue SockJS::InvalidJSON => error
         # @ws.send(error.message) # TODO: frame it ... although ... is it required? The tests do pass, but it would be inconsistent if we'd send it for other transports and not for WS, huh?
         @ws.close # Close the connection abruptly, no closing frame.
-      end
-
-      # There are two distinct situations when this handler will be called:
-      #
-      # 1) User app closes the response.
-      # 2) Client closes the response
-      #
-      # In either case, this is called AFTER the actual connection is closed
-      # (@ws.close), so there is not much we can do, only to mark the session
-      # as terminated and delete it after the 5s timeout.
-      #
-      # Furthemore current API doesn't make it possible to get session
-      #
-      def handle_close(ws, request, event)
-        SockJS.debug "WebSocket#handle_close"
-      #   SockJS.debug "Closing WS connection."
-      #
-      #   # If it's the user app who closed
-      #   # the response, we won't ever get
-      #   # to pass this point as we'll get
-      #   # SessionUnavailableError.
-      #   self.get_session(request.path_info)
-      # rescue SockJS::SessionUnavailableError => error
-      #   # TODO: Set status is necessary(?)
-      #   # error.session
       end
     end
   end

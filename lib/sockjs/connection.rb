@@ -61,14 +61,11 @@ module SockJS
           raise "We should never get here!\nsession.status: #{session.status}, has session response: #{!! session.response}"
         end
       else
-        SockJS.debug "get_session: session for #{session_key.inspect} doesn't exist."
-        return nil
-      end
-    end
-
-    def create_session(key, transport, session_class = transport.session_class)
-      self.sessions[key] ||= begin
-        session_class.new(open: callbacks[:session_open], buffer: callbacks[:subscribe])
+        SockJS.debug "get_session: session for #{session_key.inspect} doesn't exist.  Creating..."
+        sessions[session_key] ||=
+          begin
+            Session.new(open: callbacks[:session_open], buffer: callbacks[:subscribe])
+          end
       end
     end
   end

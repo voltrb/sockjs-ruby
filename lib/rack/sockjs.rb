@@ -6,6 +6,9 @@ require "sockjs/transport"
 require "sockjs/servers/thin"
 
 require 'rack/mount'
+
+require 'sockjs/duck-punch-rack-mount'
+
 # Transports.
 require "sockjs/transports/info"
 require "sockjs/transports/eventsource"
@@ -138,7 +141,7 @@ module Rack
       end
     end
 
-    def self.new(options = nil, &block)
+    def initialize(options = nil, &block)
       #TODO refactor Connection to App
       connection = ::SockJS::Connection.new(&block)
 
@@ -146,20 +149,25 @@ module Rack
 
       options = DEFAULT_OPTIONS.merge(options)
 
-      routing = Rack::Mount::RouteSet.new do |set|
+      @routing = Rack::Mount::RouteSet.new do |set|
         ::SockJS::Transport.add_routes(set, connection, options)
 
         set.add_route(MissingHandler.new(options), {}, {}, :missing)
       end
 
-      require 'pp'
-      pp routing
+      routing = @routing
 
-      Rack::Builder.new do
+      @app = Rack::Builder.new do
         use Rack::SockJS::ResetScriptName
         use DebugRequest
         run routing
-      end
+      end.to_app
+    end
+
+    attr_reader :routing
+
+    def call(env)
+      @app.call(env)
     end
   end
 end

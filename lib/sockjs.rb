@@ -50,11 +50,11 @@ module SockJS
     end
 
     def to_response(adapter, request)
-      adapter.sessionless_response(request, self.status) do |response|
-        response.set_content_type(:plain)
-        @block.call(response) if @block
-        response.write(self.message) if self.message
-      end
+      response = adapter.sessionless_response(request, self.status)
+
+      response.set_content_type(:plain)
+      @block.call(response) if @block
+      response.write(self.message) if self.message
     end
   end
 

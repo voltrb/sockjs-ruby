@@ -39,13 +39,19 @@ describe SockJS::Transport do
     end
   end
 
+  let :session do
+    mock("Session")
+  end
+
   describe "#format_frame(payload)" do
     it "should fail if payload is nil" do
-      -> { subject.format_frame(nil) }.should raise_error(TypeError)
+      expect do
+        subject.format_frame(session, nil)
+      end.to raise_error(TypeError)
     end
 
     it "should return payload followed by \\n otherwise" do
-      subject.format_frame("o").should eql("o\n")
+      subject.format_frame(session, "o").should eql("o\n")
     end
   end
 

@@ -11,6 +11,19 @@ module SockJS
     class Request < Rack::Request
       # We need to access the async.callback.
       attr_reader :env
+
+      def async_callback
+        env["async.callback"]
+      end
+
+      def async_close
+        env["async.close"]
+      end
+
+      def on_close(&block)
+        async_close.callback( &block)
+        async_close.errback(  &block)
+      end
     end
 
     DUMMY_RESPONSE = [-1, {}, []].freeze
@@ -20,6 +33,7 @@ module SockJS
 
       attr_reader :status, :headers, :body
       def initialize(request, status = nil, headers = Hash.new, &block)
+        p :thin_init => [request, status, headers]
         # request.env["async.close"]
         # ["rack.input"].closed? # it's a stream
         @request, @status, @headers = request, status, headers
@@ -54,11 +68,8 @@ module SockJS
             turn_chunking_on(@headers)
           end
 
-          callback = @request.env["async.callback"]
-
           SockJS.debug "Headers: #{@headers.inspect}"
-
-          callback.call([@status, @headers, @body])
+          @request.async_callback.call([@status, @headers, @body])
         end
       end
 

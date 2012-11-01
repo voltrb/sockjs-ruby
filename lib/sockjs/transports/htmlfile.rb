@@ -6,13 +6,9 @@ require "sockjs/transport"
 module SockJS
   module Transports
     class HTMLFile < SessionTransport
-      register 'GET', '/htmlfile'
+      register 'GET', 'htmlfile'
 
-      def session_class
-        SockJS::Session
-      end
-
-      HTML_TEMPLATE = <<-EOT.freeze
+      HTML_PREFIX = <<-EOT.chomp.freeze
 <!doctype html>
 <html><head>
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
@@ -20,34 +16,33 @@ module SockJS
 </head><body><h2>Don't panic!</h2>
   <script>
     document.domain = document.domain;
-    var c = parent.{{ callback }};
+    var c = parent.
+      EOT
+
+      HTML_POSTFIX = (<<-EOH + (" " * (1024 - HTML_PREFIX.bytesize)) + "\r\n\r\n").freeze
+;
     c.start();
-    function p(d) {c.message(d);};
+    function print(d) {c.message(d);};
     window.onload = function() {c.stop();};
   </script>
-  EOT
+      EOH
 
-      # Handler.
-      def handle(request)
+
+      def session_opened(session)
+        session.wait(response)
+      end
+
+      def opening_response(session, request)
         if request.callback
-          # Safari needs at least 1024 bytes to parse the website. Relevant:
-          #   http://code.google.com/p/browsersec/wiki/Part2#Survey_of_content_sniffing_behaviors
-          html = HTML_TEMPLATE.gsub("{{ callback }}", request.callback)
-          body = html + (" " * (1024 - html.bytesize)) + "\r\n\r\n"
+          response = response_class.new(request, 200)
+          response.set_content_type(:html)
+          response.set_no_cache
+          response.set_session_id(request.session_id)
 
-          response(request, 200, :session => :create) do |response, session|
-            response.set_content_type(:html)
-            response.set_no_cache
-            response.set_session_id(request.session_id)
-
-            response.write(body)
-
-            if session.newly_created?
-              session.open!
-            end
-
-            session.wait(response)
-          end
+          response.write(HTML_PREFIX)
+          response.write(request.callback)
+          response.write(HTML_POSTFIX)
+          response
         else
           sessionless_response(request, 500) do |response|
             response.set_content_type(:html)
@@ -59,7 +54,7 @@ module SockJS
       def format_frame(payload)
         raise TypeError.new("Payload must not be nil!") if payload.nil?
 
-        "<script>\np(#{payload.to_json});\n</script>\r\n"
+        "<script>\nprint(#{payload.to_json});\n</script>\r\n"
       end
     end
   end

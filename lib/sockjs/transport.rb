@@ -1,8 +1,9 @@
 # encoding: utf-8
 
-require "sockjs/buffer"
 require "sockjs/session"
 require "sockjs/servers/thin"
+
+require 'rack/mount'
 
 module SockJS
   class SessionUnavailableError < StandardError
@@ -66,7 +67,12 @@ module SockJS
       end
 
       def routing_prefix
-        self.prefix
+        case prefix
+        when String
+          "/" + prefix
+        when Regexp
+          prefix
+        end
       end
 
       def route_conditions
@@ -101,10 +107,6 @@ module SockJS
       options[:cookie_needed] = true unless options.has_key?(:cookie_needed)
     end
 
-    def session_class
-      SockJS::SessionWitchCachedMessages
-    end
-
     # TODO: Make it use the adapter user uses.
     def response_class
       SockJS::Thin::Response
@@ -115,7 +117,7 @@ module SockJS
       "\n"
     end
 
-    def format_frame(payload)
+    def format_frame(session, payload)
       raise TypeError.new("Payload must not be nil!") if payload.nil?
 
       "#{payload}\n"
@@ -129,8 +131,29 @@ module SockJS
       ::SockJS::Thin::DUMMY_RESPONSE
     end
 
+    def handle(request)
+      handle_request(request).tap{|resp| p resp}
+    rescue Object => error
+      p :error_in_handle => error
+      puts error.backtrace
+      error_response(error, request)
+    end
+
+    def handle_request(request)
+      response = build_response(request, 200)
+      response.finish
+      return response
+    end
+
     def build_response(request, status)
-      response_class.new(request, status)
+      p :build_response => [request, status]
+      response = response_class.new(request, status)
+      setup_response(request, response)
+      return response
+    end
+    alias sessionless_response build_response
+
+    def setup_response(request, response)
     end
 
     def empty_response(request, status)
@@ -140,29 +163,33 @@ module SockJS
       return response
     end
 
-    def response(request, status, options = nil)
-      options ||= {}
-      unless block_given?
-        empty_response(request, status)
+    def error_response(error, request)
+      case error
+      when SockJS::HttpError
+        error.to_response(self, request)
       else
-        response = build_response(request, status)
-        yield(response)
-        response
+        response = response_class.new(request, 500)
+        response.write(error.message)
+        response.finish
       end
     end
+  end
 
-    alias sessionless_response response
+  #Transaction transports exchange data with clients on a request/response
+  #basis.  As a result, client application messages need to be queued for the
+  #next client request.
+  module Transactional
+    def data_queued(session)
+    end
 
-    def handle(request)
-      handle_request(request)
-    rescue HttpError => error
-      error.to_response(self, request)
+    def session_continues(session)
+      session.send_transmit_queue
     end
   end
 
   class SessionTransport < Transport
     def self.routing_prefix
-      %r{^/(?<server-key>[^/]+)/(?<session-key>)#{self.prefix}$}
+      ::Rack::Mount::Strexp.new("/:server_key/:session_key/#{self.prefix}")
     end
 
     # There's a session:
@@ -170,22 +197,10 @@ module SockJS
     #   b) It's open:
     #      i) There IS NOT any consumer -> OK. AND CONTINUE
     #      i) There IS a consumer -> Send c[2010,"Another con still open"] AND END
-    def get_session(session_key)
-      session = connection.get_session(session_key)
-    end
-
-    def create_session(session_key, response = nil, preamble = nil)
-      response.write(preamble) if preamble
-
-      return self.connection.create_session(session_key, self)
-    end
-
     def handle_session_unavailable(error, response)
       session = error.session
-
-      session.with_response_and_transport(response, self) do
-        session.finish
-      end
+      session.response = response
+      session.finish
     end
 
     def server_key(request)
@@ -196,44 +211,41 @@ module SockJS
       (request.env['rack.routing_args'] || {})['session-key']
     end
 
-    def response(request, status, options = nil)
-      options ||= {}
+    def handle_request(request)
+      p :handle_request => self.class
+      SockJS::debug(request.inspect)
 
-      unless block_given?
-        empty_response(request, status)
-      else
-        begin
-          if session = get_session(session_key(request))
-            session.buffer = Buffer.new(:open)
-          elsif options[:session] == :create
-            session = create_session(session_key(request))
-            session.buffer = Buffer.new
-          end
-
-          response = build_response(request, status)
-
-          if session
-            response.session = session
-
-            session.with_response_and_transport(response, self) do
-              if options[:data]
-                session.receive_message(request, options[:data])
-              end
-
-              SockJS.debug "Calling block in response(request, #{status}, #{options.inspect}) with response and session."
-              yield(response, session)
-            end
-          else
-            SockJS.debug "Session can't be retrieved."
-
-            SockJS.debug "Calling block in response(request, #{status}, #{options.inspect}) with response and nil instead of session."
-            yield(response, nil)
-          end
-          return response
-        rescue SockJS::SessionUnavailableError => error
-          self.handle_session_unavailable(error, response)
-        end
+      begin
+        session = connection.get_session(session_key(request))
+        session.receive_request(request, self)
+        return session.response
+      rescue SockJS::SessionUnavailableError => error
+        handle_session_unavailable(error, response)
       end
+    end
+
+    def request_data(request)
+      request.data.string
+    end
+
+    def opening_response(session, request)
+      #default assumption is that the transport can't open sessions
+      raise SockJS::SessionUnavailableError.new(session)
+    end
+
+    def continuing_response(session, request)
+      raise NotImplementedError
+    end
+
+    def session_opened(session)
+      session.close_response
+    end
+
+    def session_continues(session)
+    end
+
+    def data_queued(session)
+      session.send_transmit_queue
     end
   end
 end

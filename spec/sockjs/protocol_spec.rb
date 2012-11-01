@@ -5,47 +5,45 @@ require "spec_helper"
 require "sockjs/protocol"
 
 describe SockJS::Protocol do
-  it "should define OPENING_FRAME" do
-    described_class::OPENING_FRAME.should eql("o")
+  it "OpeningFrame should be 'o'" do
+    described_class::OpeningFrame.instance.to_s.should eql("o")
   end
 
-  it "should define CLOSING_FRAME" do
-    described_class::CLOSING_FRAME.should eql("c")
+  it "HeartbeatFrame should be 'h'" do
+    described_class::HeartbeatFrame.instance.to_s.should eql("h")
   end
 
-  it "should define ARRAY_FRAME" do
-    described_class::ARRAY_FRAME.should eql("a")
-  end
-
-  it "should define HEARTBEAT_FRAME" do
-    described_class::HEARTBEAT_FRAME.should eql("h")
-  end
-
-  describe ".array_frame(array)" do
+  describe "ArrayFrame" do
     it "should take only an array as the first argument" do
-      -> { described_class.array_frame(Hash.new) }.should raise_error(TypeError)
+      expect {
+        SockJS::Protocol::ArrayFrame.new(Hash.new)
+      }.to raise_error(TypeError)
     end
 
     it "should return a valid array frame" do
-      described_class.array_frame([1, 2, 3]).should eql("a[1,2,3]")
-      described_class.array_frame(["tests"]).should eql('a["tests"]')
+      SockJS::Protocol::ArrayFrame.new([1, 2, 3]).to_s.should eql("a[1,2,3]")
+      SockJS::Protocol::ArrayFrame.new(["tests"]).to_s.should eql('a["tests"]')
     end
   end
 
-  describe ".closing_frame(status, message)" do
+  describe "ClosingFrame" do
     it "should take only integer as the first argument" do
-      -> { described_class.closing_frame("2010", "message") }.should raise_error(TypeError)
+      expect {
+        SockJS::Protocol::ClosingFrame.new("2010", "message")
+      }.to raise_error(TypeError)
     end
 
     it "should take only string as the second argument" do
-      -> { described_class.closing_frame(2010, :message) }.should raise_error(TypeError)
+      expect {
+        SockJS::Protocol::ClosingFrame.new(2010, :message)
+      }.to raise_error(TypeError)
     end
 
     it "should return a valid closing frame" do
-      -> {
-        frame = described_class.closing_frame(2010, "message")
-        frame.should eql('c[2010,"message"]')
-      }.should_not raise_error(TypeError)
+      expect {
+        frame = SockJS::Protocol::ClosingFrame.new(2010, "message")
+        frame.to_s.should eql('c[2010,"message"]')
+      }.not_to raise_error
     end
   end
 end

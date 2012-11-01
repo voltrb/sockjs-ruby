@@ -1,100 +1,252 @@
 # encoding: utf-8
+#
+require 'alter_ego'
+require 'sockjs/protocol'
 
 module SockJS
   class Session
+    include AlterEgo
     include CallbackMixin
 
-    attr_accessor :buffer, :response, :transport
-    attr_reader :status
+    state :fresh, :default => true do
+      on_enter do
+        self.transport = nil
+      end
+
+      handle(:disconnect_expired){}
+
+      handle :receive_request do |request, transport|
+        @transport = transport
+        data = transport.request_data(request)
+        @response = transport.opening_response(self, request)
+        transition_to(:opening)
+        @response
+      end
+    end
+
+    state :opening do
+      on_enter do
+        handle_send_data(Protocol::OpeningFrame.instance)
+
+        set_timer
+        set_alive_checker
+      end
+
+      handle :disconnect_expired do
+        close
+      end
+      handle :check_status do
+        transition_to :open
+        @transport.session_opened(self)
+      end
+    end
+
+    state :idle do
+      on_enter do
+        finish_response
+      end
+
+      handle :receive_request do |request, transport|
+        data = transport.request_data(request)
+        @response = transport.continuing_response(self, request)
+        transition_to(:open)
+        receive_message(request, data)
+        @transport.session_continues(self)
+        @response
+      end
+
+      handle :close do |status, message|
+        close_session(status || 3000, message || "Go away!")
+      end
+
+      handle :finish do
+        #No response to close up
+      end
+
+      transition :to => :closing
+      transition :to => :open
+    end
+
+    state :open do
+      on_enter do
+        execute_callback(:open, self)
+        set_heartbeat_timer
+      end
+
+      handle(:check_status){}
+      handle :process_buffer, :handle_process_buffer
+      handle :send_data, :handle_send_data
+
+      handle :finish do
+        send_data(outbox_frame)
+      end
+
+      handle :close do |status, message|
+        close_session(status || 3000, message || "Go away!")
+      end
+      handle :send_heartbeat do
+        send_data(Protocol::HeartbeatFrame.instance)
+      end
+
+      handle :disconnect_expired do
+        close
+      end
+
+      handle :close_response do
+        SockJS.debug "close_response: clearing response and transport."
+        transition_to(:idle)
+      end
+
+      transition :to => :idle
+      transition :to => :waiting, :on => :wait
+      transition :to => :closing
+    end
+
+    state :waiting do
+      on_enter do
+        run_user_app(response)
+        set_timer
+        init_periodic_timer
+      end
+
+      handle(:disconnect_expired){}
+      handle :send_data, :handle_send_data
+      #XXX when do we start the heartbeat timer?
+      handle :send_heartbeat do
+        send_data(Protocol::HeartbeatFrame.instance)
+      end
+
+      handle :finish do
+        send_data(outbox_frame)
+      end
+
+      handle :close_response do
+        SockJS.debug "close_response: clearing response and transport."
+        transition_to(:idle)
+      end
+
+      handle :wait do
+        SockJS.debug "Session#wait: another connection still open"
+        close(2010, "Another connection still open")
+      end
+    end
+
+    #XXX State names are, IMO, confusing. Consider "closed" and "finalized"
+    state :closing do
+      on_enter do
+        finish
+        cancel_timers
+        reset_close_timer
+      end
+
+      handle :close do
+        cancel_timers
+      end
+
+      handle :send_data do
+        handle_send_data(@closing_frame)
+      end
+
+      handle :finish do
+        send_data(@closing_frame)
+        finish_response
+      end
+
+      transition :to => :closed, :on => :mark_to_be_garbage_collected do
+        SockJS.debug "Closing the session"
+      end
+
+      handle(:disconnect_expired){}
+    end
+
+    state :closed do
+      handle(:disconnect_expired){}
+      handle :close do
+        :cancel_timers
+      end
+    end
+
+    request_filter :new_state => :opening do
+      !(@transport.nil? or @response.nil?)
+    end
+
+    request_filter :new_state => :open do
+      !@transport.nil?
+    end
+
+    request_filter :new_state => :waiting do
+      !@response.nil?
+    end
+
+    request_filter :new_state => :closing do
+      !(@closing_frame.nil?)
+    end
+
+    attr_accessor :disconnect_delay, :interval
+    attr_reader :transport, :response, :outbox, :closing_frame, :data
 
     def initialize(callbacks)
       @callbacks = callbacks
       @disconnect_delay = 5 # TODO: make this configurable.
-      @status = :created
-      @received_messages = Array.new
+      @received_messages = []
+      @outbox = []
       @total_sent_content_length = 0
+      @interval = 0.1
+      @closing_frame = nil
+      @data = {}
     end
 
-    def send_data(frame)
-      if @response.nil?
-        raise TypeError.new("Session#response must not be nil! Occurred when writing #{frame.inspect}")
-      end
-
-      data = @transport.format_frame(frame)
+    def handle_send_data(frame)
+      data = @transport.format_frame(self, frame.to_s)
 
       @total_sent_content_length += data.bytesize
 
       @response.write(data)
+    end
 
-      # So we can resend closing frame.
-      unless self.closing?
-        self.buffer.clear
-      end
+    def send_transmit_queue
+      send_data(Protocol::ArrayFrame.new(@outbox))
+      clear_transmit_queue
+    end
+
+    def clear_transmit_queue
+      @outbox.clear
     end
 
     def send(*messages)
       return if messages.empty?
-      buffer.push(*messages)
-      send_data(buffer.to_frame)
+      push_messages(*messages)
+      @transport.data_queued(self)
     end
 
-    def finish(no_content = false)
-      frame = @buffer.to_frame
-      self.send_data(frame)
-    rescue SockJS::NoContentError => error
-      if no_content
-        SockJS.debug "No content, it's fine though."
-      else
-        self.set_heartbeat_timer(error.buffer)
-      end
-    ensure
-      @response.finish if @response && ((frame and frame.match(/^c\[\d+,/)) || no_content)
+    def push_messages(*messages)
+      @outbox += messages
     end
 
-    #WHY?  GOD THE HUMANITY, WHY?
-    def with_response_and_transport(response, transport, &block)
-      raise ArgumentError.new("Response must not be nil!") if response.nil?
-      raise ArgumentError.new("Transport must not be nil!") if transport.nil?
-
-      SockJS.debug "with_response: assigning response and #{transport.class} (#{transport.object_id}) ..."
-
-      if @transport && (@transport.is_a?(SockJS::Transports::XHRStreamingPost) || @transport.is_a?(SockJS::Transports::EventSource) || @transport.is_a?(SockJS::Transports::HTMLFile))
-        SockJS.debug "with_response: saving response and transport #{@transport.class} (#{@transport.object_id})"
-        prev_resp, prev_trans = @response, @transport
-      end
-
-      @response, @transport = response, transport
-      block.call
-
-    ensure
-      if prev_trans && (prev_trans.is_a?(SockJS::Transports::XHRStreamingPost) || prev_trans.is_a?(SockJS::Transports::EventSource) || prev_trans.is_a?(SockJS::Transports::HTMLFile)) # TODO: #streaming? / #polling? / #waiting? ... actually no, just define this only for this class, the other transports use SessionWitchCachedMessages (but don't forget that it inherits from this one).
-        SockJS.debug "with_response: reassigning response and #{prev_trans.class} (#{prev_trans.object_id}) ..."
-        @response, @transport = prev_resp, prev_trans
-      end
+    def outbox_frame
+      Protocol::ArrayFrame.new(@outbox)
+      #XXX empty @outbox?
     end
 
-    def close_response
-      SockJS.debug "close_response: clearing response and transport."
-
-      @response.finish
-      @response = nil; @transport = nil
+    #Use in place of finish(true) for "no_content"
+    def finish_response
+      @response.finish if @response
+      @response = nil
     end
 
     # All incoming data is treated as incoming messages,
     # either single json-encoded messages or an array
     # of json-encoded messages, depending on transport.
     def receive_message(request, data)
-      self.reset_timer do
-        self.check_status
+      reset_timer do
+        check_status
 
         messages = parse_json(data)
         process_messages(*messages) unless messages.empty?
       end
     rescue SockJS::InvalidJSON => error
       raise error if @response.nil? # WS
-      @transport.response(request, error.status) do |response|
-        response.write(error.message)
-      end
+      @transport.error_response(error, request)
     end
 
     def process_messages(*messages)
@@ -105,95 +257,54 @@ module SockJS
     def after_app_run
     end
 
-    def process_buffer(reset_timer = true)
-      if @transport.nil?
-        raise TypeError.new("Transport must not be nil!")
+    def app_response
+      SockJS.debug "Processing buffer using #{@transport.class}"
+      check_status
+
+      raise @error if @error
+
+      @received_messages.each do |message|
+        SockJS.debug "Executing app with message #{message.inspect}"
+        self.execute_callback(:buffer, self, message)
       end
-
-      create_response(reset_timer) do
-        SockJS.debug "Processing buffer using #{@transport.class}"
-        self.check_status
-
-        # The error is supposed to be cached for 5s
-        # in case the connection dies. For the time
-        # being we cache it infinitely.
-        raise @error if @error
-
-        # Hmmm that's bollocks, what if we do session.close
-        # from within the app? We can't call it multiple times,
-        # unless we redefine session.close to raise an exception,
-        # hence it wouldn't be executed only once ...
-        # that's not a bad idea BTW.
-        @received_messages.each do |message|
-          SockJS.debug "Executing app with message #{message.inspect}"
-          self.execute_callback(:buffer, self, message)
-        end
-
-        self.after_app_run
-      end
-    end
-
-    def create_response(timer_reset = true, &block)
-      if timer_reset
-        self.reset_timer {
-          block.call
-        }
-      else
-        block.call
-      end
-
       @received_messages.clear
 
-      if @buffer.contains_data?
-        result = @buffer.to_frame
-        @buffer.clear unless self.closing?
-        result
+      self.after_app_run
+    end
+
+    def handle_process_buffer(timer_reset = true)
+      if timer_reset
+        reset_timer {
+          app_response
+        }
       else
-        nil
+        app_response
       end
+
+      create_response
     rescue SockJS::NoContentError => error
-      self.set_heartbeat_timer(error.buffer)
+      set_heartbeat_timer
     rescue SockJS::CloseError => error
-      Protocol.closing_frame(error.status, error.message)
+      Protocol::ClosingFrame.new(error.status, error.message)
     end
 
-    def check_status
-      # Shouldn't we set @buffer.status to :open?
-      # Ah, apparently we can't, there's no API for it,
-      # only by creating a new Buffer instance.
-      if @status == :opening
-        @status = :open
-        self.execute_callback(:open, self)
+    def create_response
+      if @outbox.empty?
+        nil
+      else
+        result = outbox_frame
+        @outbox.clear
+        result
       end
-    end
-
-    # TODO: what with the args?
-    def open!(*args)
-      @status = :opening
-      self.buffer.open # @buffer.status to :opening
-
-      self.set_timer
-      self.set_alive_checker
-      self.finish
     end
 
     # Set the internal state to closing
     def close_session(status = 3000, message = "Go away")
-      @status = :closing
-
-      self.buffer.close(status, message)
+      @closing_frame = Protocol::ClosingFrame.new(status, message)
+      transition_to(:closing)
     end
 
-    def close(status = 3000, message = "Go away!")
-      # Hint: session.buffer = Buffer.new(:open) or so
-      if newly_created?
-        raise "You can't change from #{@status} to closing!"
-      end
-
-      if not closing?
-        self.close_session(status, message)
-      end
-
+    def cancel_timers
       if @periodic_timer
         @periodic_timer.cancel
         @periodic_timer = nil
@@ -203,60 +314,11 @@ module SockJS
         @alive_checker.cancel
         @alive_checker = nil
       end
-
-      finish_on_close
-
-      reset_close_timer
-    end
-
-    def finish_on_close
-      finish
     end
 
     def on_close
       SockJS.debug "The connection has been closed on the client side (current status: #{@status})."
-      self.close_session(1002, "Connection interrupted")
-    end
-
-    def waiting? # TODO: What about WS?
-      !! @periodic_timer
-    end
-
-    def newly_created?
-      @status == :created
-    end
-
-    def opening?
-      @status == :opening
-    end
-
-    def open?
-      @status == :open
-    end
-
-    def closing?
-      @status == :closing
-    end
-
-    def closed?
-      @status == :closed
-    end
-
-    def wait(response, interval = 0.1)
-      if self.waiting? # Doesn't work for XHR, only for streaming.
-        SockJS.debug "Session#wait: another connection still open"
-        self.close(2010, "Another connection still open")
-        return
-      end
-
-      # Run the app at least once.
-      data = self.run_user_app(response)
-
-      self.set_timer
-
-      unless @buffer.closing?
-        init_periodic_timer(response, interval)
-      end
+      close_session(1002, "Connection interrupted")
     end
 
     def max_permitted_content_length
@@ -265,18 +327,17 @@ module SockJS
 
     def run_user_app(response)
       SockJS.debug "Executing user's SockJS app"
-      frame = self.process_buffer(false)
-      self.send_data(frame) if frame and not frame.match(/^c\[\d+,/)
-        SockJS.debug "User's SockJS app finished"
+      frame = process_buffer(false)
+      send_data(frame) if frame and not frame.is_a? Protocol::ClosingFrame
+      SockJS.debug "User's SockJS app finished"
     end
 
     # Periodic timer runs the user app if it receives some
     # messages in the meantime. Also, it closes the response
     # if maximal content length is exceeded.
-    def init_periodic_timer(response, interval)
+    def init_periodic_timer
       @periodic_timer = EM::PeriodicTimer.new(interval) do
-        @periodic_timer.cancel if @disconnect_timer_canceled
-        SockJS.debug "Tick: #{@status}, #{@buffer.inspect}"
+        SockJS.debug "Tick: #{@status}, #{@outbox.inspect}"
 
         unless @received_messages.empty?
           run_user_app(response)
@@ -284,12 +345,11 @@ module SockJS
           if @total_sent_content_length >= max_permitted_content_length
             SockJS.debug "Maximal permitted content length exceeded, closing the connection."
 
-            # Close the response without writing any closing frame.
-            self.finish(true)
+            finish_response
 
             @periodic_timer.cancel
 
-            @status = :closed
+            transition_to(:closed)
           else
             SockJS.debug "Permitted content length: #{@total_sent_content_length} of #{max_permitted_content_length}"
           end
@@ -300,33 +360,25 @@ module SockJS
     protected
     def parse_json(data)
       if data.empty?
-        raise SockJS::InvalidJSON.new("Payload expected.")
+        raise SockJS::InvalidJSON.new(500, "Payload expected.")
       end
 
       JSON.parse(data)
     rescue JSON::ParserError => error
-      raise SockJS::InvalidJSON.new("Broken JSON encoding.")
+      raise SockJS::InvalidJSON.new(500, "Broken JSON encoding.")
     end
 
-    # Disconnect timer to close the response after longer innactivity.
+    # Disconnect timer to close the response after longer inactivity.
     def set_timer
       SockJS.debug "Setting @disconnect_timer to #{@disconnect_delay}"
       @disconnect_timer ||=
         begin
           EM::Timer.new(@disconnect_delay) do
             SockJS.debug "#{@disconnect_delay} has passed, firing @disconnect_timer"
-            @disconnect_timer_canceled = true
-
+            @periodic_timer.cancel if @periodic_timer
             @alive_checker.cancel if @alive_checker
 
-            if self.opening? or self.open?
-              # OK, so we're here, closing the open response ... but its body is already closed, huh?
-              SockJS.debug "@disconnect_timer: closing the connection."
-              self.close
-              SockJS.debug "@disconnect_timer: connection closed."
-            else
-              SockJS.debug "@disconnect_timer: doing nothing."
-            end
+            disconnect_expired
           end
         end
     end
@@ -347,9 +399,9 @@ module SockJS
                 end
               rescue Exception => error
                 puts "==> "
-                p error
+                SockJS.debug error
                 puts "==> "
-                self.on_close
+                on_close
                 @alive_checker.cancel
               end
             else
@@ -369,7 +421,7 @@ module SockJS
 
       block.call if block
 
-      self.set_timer
+      set_timer
     end
 
     def reset_close_timer
@@ -390,7 +442,7 @@ module SockJS
     end
 
     # Heartbeats to make sure nothing times out.
-    def set_heartbeat_timer(buffer)
+    def set_heartbeat_timer
       # Cancel @disconnect_timer.
       SockJS.debug "Cancelling @disconnect_timer as we're about to send a heartbeat frame in 25s."
       @disconnect_timer.cancel if @disconnect_timer
@@ -404,7 +456,7 @@ module SockJS
         # clearing the buffer won't change it.
         SockJS.debug "Sending heartbeat frame."
         begin
-          self.finish
+          send_heartbeat
         rescue Exception => error
           # Nah these exceptions are OK ... let's figure out when they occur
           # and let's just not set the timer for such cases in the first place.
@@ -412,13 +464,31 @@ module SockJS
         end
       end
     end
-
-    def mark_to_be_garbage_collected
-      SockJS.debug "Closing the session"
-      @status = :closed
-    end
   end
 
+  class SessionWitchCachedMessages < Session
+    def send(*messages)
+      @outbox += messages
+    end
+
+    def run_user_app(response)
+      SockJS.debug "Executing user's SockJS app"
+      frame = process_buffer(false)
+      # self.send_data(frame) if frame and not frame.match(/^c\[\d+,/)
+      SockJS.debug "User's SockJS app finished"
+    end
+
+    def send_data(frame)
+      super(frame)
+
+      close_response
+    end
+
+    def set_alive_checker
+    end
+
+    alias_method :after_app_run, :finish
+  end
 
   class WebSocketSession < Session
     attr_accessor :ws
@@ -435,24 +505,15 @@ module SockJS
       end
     end
 
-    def finish
-      frame = @buffer.to_frame
-      self.send_data(frame)
-    rescue SockJS::NoContentError => error
-      # Why there's no bloody content? That's not right, there should be a closing frame.
-      SockJS.debug "finish: no content, setting the heartbeat timer."
-      self.set_heartbeat_timer(error.buffer)
-    end
-
     def after_app_run
       return super unless self.closing?
 
-      self.after_close
+      after_close
     end
 
     def after_close
       SockJS.debug "after_close: calling #finish"
-      self.finish
+      finish
 
       SockJS.debug "after_close: closing @ws and clearing @transport."
       @ws.close
@@ -461,30 +522,5 @@ module SockJS
 
     def set_alive_checker
     end
-  end
-
-
-  class SessionWitchCachedMessages < Session
-    def send(*messages)
-      self.buffer.push(*messages)
-    end
-
-    def run_user_app(response)
-      SockJS.debug "Executing user's SockJS app"
-      frame = self.process_buffer(false)
-      # self.send_data(frame) if frame and not frame.match(/^c\[\d+,/)
-      SockJS.debug "User's SockJS app finished"
-    end
-
-    def send_data(frame)
-      super(frame)
-
-      self.close_response
-    end
-
-    def set_alive_checker
-    end
-
-    alias_method :after_app_run, :finish
   end
 end
