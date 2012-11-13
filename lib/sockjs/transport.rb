@@ -132,10 +132,9 @@ module SockJS
     end
 
     def handle(request)
-      handle_request(request).tap{|resp| p resp}
+      handle_request(request)
     rescue Object => error
-      p :error_in_handle => error
-      puts error.backtrace
+      SockJS.debug "Error while handling request: #{([error.inspect] + error.backtrace).join("\n")}"
       error_response(error, request)
     end
 
@@ -146,7 +145,6 @@ module SockJS
     end
 
     def build_response(request, status)
-      p :build_response => [request, status]
       response = response_class.new(request, status)
       setup_response(request, response)
       return response
@@ -212,13 +210,11 @@ module SockJS
     end
 
     def handle_request(request)
-      p :handle_request => self.class
       SockJS::debug(request.inspect)
 
       begin
         session = connection.get_session(session_key(request))
-        session.receive_request(request, self)
-        return session.response
+        return session.receive_request(request, self)
       rescue SockJS::SessionUnavailableError => error
         handle_session_unavailable(error, response)
       end

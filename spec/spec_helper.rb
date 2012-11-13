@@ -1,6 +1,7 @@
 # encoding: utf-8
 
 require 'support/async-test.rb'
+require 'support/shared-contexts'
 
 module TransportSpecMacros
   def transport_handler_eql(path, method)
@@ -38,7 +39,7 @@ require 'sockjs/servers/thin'
 class FakeRequest < SockJS::Thin::Request
   attr_reader :chunks
   attr_writer :data
-  attr_accessor :path_info, :callback, :if_none_match, :content_type
+  attr_accessor :path_info, :query_string, :if_none_match, :content_type
 
   def initialize(env = Hash.new)
     self.env.merge!(env)
@@ -52,7 +53,6 @@ class FakeRequest < SockJS::Thin::Request
   def env
     @env ||= {
       "async.callback" => Proc.new do |status, headers, body|
-        p :running_callback
         @chunks = Array.new
 
         # This is so we can test it.

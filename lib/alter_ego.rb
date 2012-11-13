@@ -258,7 +258,14 @@ module AlterEgo
     end
 
     def states
-      (@states ||= {})
+      @states ||=
+        begin
+          if AlterEgo > superclass
+            superclass.states
+          else
+            {}
+          end
+        end
     end
 
     def states=(value)
@@ -316,7 +323,11 @@ module AlterEgo
     end
 
     def default_state
-      @default_state
+      if defined? @default_state
+        @default_state
+      else
+        superclass.default_state
+      end
     end
 
     def request_filters

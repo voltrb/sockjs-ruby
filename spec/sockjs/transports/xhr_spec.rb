@@ -6,23 +6,15 @@ require "spec_helper"
 require "sockjs"
 require "sockjs/transports/xhr"
 
-describe "XHR" do
-  around :each do |example|
-    EM.run{
-      example.run
-      EM.stop
-    }
-  end
-
+describe "XHR", :type => :transport, :em => true do
   describe SockJS::Transports::XHRPost do
     transport_handler_eql "/xhr", "POST"
 
     describe "#handle(request)" do
-      let(:transport) do
-        connection = SockJS::Connection.new {}
-        session = FakeSession.new({})
-        connection.sessions["b"] = session
-        described_class.new(connection, {})
+      let(:prior_transport) do
+        xprt = SockJS::Transports::XHRPost.new(connection, Hash.new)
+        def xprt.send; end
+        xprt
       end
 
       let(:request) do
@@ -30,10 +22,6 @@ describe "XHR" do
           request.session_key = Array.new(7) { rand(256) }.pack("C*").unpack("H*").first
           request.path_info = "/xhr"
         end
-      end
-
-      let(:response) do
-        transport.handle(request)
       end
 
       context "with a session" do
@@ -87,24 +75,12 @@ describe "XHR" do
     end
   end
 
-
-
-
-
   describe SockJS::Transports::XHROptions do
     transport_handler_eql "/xhr", "OPTIONS"
 
     describe "#handle(request)" do
-      let(:transport) do
-        described_class.new(Object.new, Hash.new)
-      end
-
       let(:request) do
         FakeRequest.new
-      end
-
-      let(:response) do
-        transport.handle(request)
       end
 
       it "should respond with HTTP 204" do
@@ -130,22 +106,14 @@ describe "XHR" do
     end
   end
 
-
-
-
-
   describe SockJS::Transports::XHRSendPost do
     transport_handler_eql "/xhr_send", "POST"
 
     describe "#handle(request)" do
-      let(:session) do
-        FakeSession.new({})
-      end
-
-      let(:transport) do
-        connection = SockJS::Connection.new {}
-        connection.sessions["b"] = session
-        described_class.new(connection, {})
+      let(:prior_transport) do
+        xprt = SockJS::Transports::XHRPost.new(connection, Hash.new)
+        def xprt.send; end
+        xprt
       end
 
       let(:request) do
@@ -153,10 +121,6 @@ describe "XHR" do
           request.session_key = rand(1 << 32).to_s
           request.path_info = "/xhr_send"
         end
-      end
-
-      let(:response) do
-        transport.handle(request)
       end
 
       context "with a session" do
@@ -204,32 +168,18 @@ describe "XHR" do
 
         it "should return error message in the body" do
           response # Run the handler.
-          #Soooo: response chunks gets filled by async.callback - need to make
-          #sure that's been triggered
           request.chunks.last.should match(/Session is not open\!/)
         end
       end
     end
   end
 
-
-
-
-
   describe SockJS::Transports::XHRSendOptions do
     transport_handler_eql "/xhr_send", "OPTIONS"
 
     describe "#handle(request)" do
-      let(:transport) do
-        described_class.new(Object.new, Hash.new)
-      end
-
       let(:request) do
         FakeRequest.new
-      end
-
-      let(:response) do
-        transport.handle(request)
       end
 
       it "should respond with HTTP 204" do
@@ -255,16 +205,11 @@ describe "XHR" do
     end
   end
 
-
-
-
-
   describe SockJS::Transports::XHRStreamingPost do
     transport_handler_eql "/xhr_streaming", "POST"
 
     describe "#handle(request)" do
       let(:transport) do
-        connection = SockJS::Connection.new {}
         transport  = described_class.new(connection, Hash.new)
 
         def transport.try_timer_if_valid(*)
@@ -278,11 +223,6 @@ describe "XHR" do
           request.path_info = "/a/b/xhr_streaming"
           request.session_key = "b"
         end
-      end
-
-      let(:response) do
-        p :xprt => transport
-        transport.handle(request)
       end
 
       it "should respond with HTTP 200" do
@@ -305,24 +245,12 @@ describe "XHR" do
     end
   end
 
-
-
-
-
   describe SockJS::Transports::XHRStreamingOptions do
     transport_handler_eql "/xhr_streaming", "OPTIONS"
 
     describe "#handle(request)" do
-      let(:transport) do
-        described_class.new(Object.new, Hash.new)
-      end
-
       let(:request) do
         FakeRequest.new
-      end
-
-      let(:response) do
-        transport.handle(request)
       end
 
       it "should respond with HTTP 204" do

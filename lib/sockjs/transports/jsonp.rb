@@ -14,9 +14,8 @@ module SockJS
       attr_accessor :callback_function
 
       def callback_required_response
-        sessionless_response(request, 500) do |response|
+        raise HttpError.new(500, '"callback" parameter required') do |response|
           response.set_content_type(:html)
-          response.write('"callback" parameter required')
         end
       end
 
@@ -67,22 +66,21 @@ module SockJS
       def request_data(request)
         if request.content_type == "application/x-www-form-urlencoded"
           raw_data = request.data.read || empty_payload
-          data = URI.decode_www_form(raw_data)
+          begin
+            data = Hash[URI.decode_www_form(raw_data)]
 
-          # It always has to be d=something.
-          if data && data.first && data.first.first == "d"
-            data.first.last
-          else
+            data = data.fetch("d")
+          rescue KeyError
             empty_payload
           end
         else
-          raw_data = request.data.read
-          if raw_data && raw_data != ""
-            raw_data
-          else
-            empty_payload
-          end
+          data = request.data.read
         end
+
+        if data.nil? or data.empty?
+          empty_payload
+        end
+        data
       end
 
       def continuing_response(session, request)

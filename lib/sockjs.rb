@@ -55,6 +55,7 @@ module SockJS
       response.set_content_type(:plain)
       @block.call(response) if @block
       response.write(self.message) if self.message
+      response
     end
   end
 

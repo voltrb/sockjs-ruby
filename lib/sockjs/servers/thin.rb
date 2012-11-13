@@ -33,7 +33,6 @@ module SockJS
 
       attr_reader :status, :headers, :body
       def initialize(request, status = nil, headers = Hash.new, &block)
-        p :thin_init => [request, status, headers]
         # request.env["async.close"]
         # ["rack.input"].closed? # it's a stream
         @request, @status, @headers = request, status, headers

@@ -18,6 +18,7 @@ module SockJS
       handle :receive_request do |request, transport|
         @transport = transport
         data = transport.request_data(request)
+        SockJS.debug "Building an opening response..."
         @response = transport.opening_response(self, request)
         transition_to(:opening)
         @response
@@ -26,7 +27,9 @@ module SockJS
 
     state :opening do
       on_enter do
+        p __LINE__
         handle_send_data(Protocol::OpeningFrame.instance)
+        p __LINE__
 
         set_timer
         set_alive_checker
@@ -48,11 +51,12 @@ module SockJS
 
       handle :receive_request do |request, transport|
         data = transport.request_data(request)
-        @response = transport.continuing_response(self, request)
+        SockJS.debug "Building a continuing response..."
+        response = @response = transport.continuing_response(self, request)
         transition_to(:open)
         receive_message(request, data)
         @transport.session_continues(self)
-        @response
+        response
       end
 
       handle :close do |status, message|
