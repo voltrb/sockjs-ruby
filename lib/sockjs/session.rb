@@ -27,9 +27,7 @@ module SockJS
 
     state :opening do
       on_enter do
-        p __LINE__
         handle_send_data(Protocol::OpeningFrame.instance)
-        p __LINE__
 
         set_timer
         set_alive_checker

@@ -15,6 +15,10 @@ module SockJS
     @debug = true
   end
 
+  def self.no_debug!
+    @debug = false
+  end
+
   def self.debug?
     @debug
   end
@@ -54,6 +58,7 @@ module SockJS
 
       response.set_content_type(:plain)
       @block.call(response) if @block
+      SockJS::debug "Built error response: #{response.inspect}"
       response.write(self.message) if self.message
       response
     end

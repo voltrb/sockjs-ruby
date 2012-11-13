@@ -10,7 +10,8 @@ describe "JSONP", :em => true, :type => :transport do
   let(:open_request) do
     FakeRequest.new.tap do |request|
       request.path_info = "/jsonp"
-      request.callback = "clbk"
+      request.query_string = {"c" => "clbk"}
+      request.data = "ok"
       request.session_key = "b"
     end
   end
@@ -29,7 +30,7 @@ describe "JSONP", :em => true, :type => :transport do
         let(:request) do
           FakeRequest.new.tap do |request|
             request.path_info = "/jsonp"
-            request.callback = "clbk"
+            request.query_string = {"c" => "clbk"}
             request.session_key = "b"
           end
         end
@@ -82,7 +83,6 @@ describe "JSONP", :em => true, :type => :transport do
         end
 
         it "should return error message in the body" do
-          SockJS.debug!
           response.chunks.last.should match(/"callback" parameter required/)
         end
       end
@@ -98,7 +98,7 @@ describe "JSONP", :em => true, :type => :transport do
 
     describe "#handle(request)" do
       let(:prior_transport) do
-        described_class.new(connection, {})
+        SockJS::Transports::JSONP.new(connection, {})
       end
 
       let(:request) do
@@ -145,6 +145,7 @@ describe "JSONP", :em => true, :type => :transport do
             end
 
             it "should respond with HTTP 404" do
+              SockJS::debug!
               response.status.should eql(404)
             end
 
@@ -218,7 +219,7 @@ describe "JSONP", :em => true, :type => :transport do
               request.path_info = "/jsonp_send"
               request.session_key = "b"
               request.content_type = "application/x-www-form-urlencoded"
-              request.query_string = URI.encode_www_form("c" => "callback")
+              request.query_string = {"c" => "callback"}
               request.data = URI.encode_www_form('d' => 'data')
             end
           end
@@ -241,7 +242,6 @@ describe "JSONP", :em => true, :type => :transport do
           end
 
           it "should return error message in the body" do
-            SockJS::debug!
             response # Run the handler.
             response.chunks.last.should match(/Payload expected./)
           end

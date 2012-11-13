@@ -162,6 +162,7 @@ module SockJS
     end
 
     def error_response(error, request)
+      SockJS.debug "Error raised: #{error.inspect}"
       case error
       when SockJS::HttpError
         error.to_response(self, request)

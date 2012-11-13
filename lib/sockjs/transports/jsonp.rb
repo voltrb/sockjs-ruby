@@ -14,9 +14,9 @@ module SockJS
       attr_accessor :callback_function
 
       def callback_required_response
-        raise HttpError.new(500, '"callback" parameter required') do |response|
+        raise (HttpError.new(500, '"callback" parameter required'){|response|
           response.set_content_type(:html)
-        end
+        })
       end
 
       def opening_response(session, request)
@@ -89,6 +89,7 @@ module SockJS
         response.set_content_type(:plain)
         response.set_session_id(request.session_id)
         response.write("ok")
+        response
       end
 
       def unknown_session(request)

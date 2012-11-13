@@ -43,6 +43,7 @@ class FakeRequest < SockJS::Thin::Request
 
   def initialize(env = Hash.new)
     self.env.merge!(env)
+    @query_string = {}
   end
 
   def session_key=(value)
@@ -113,5 +114,9 @@ RSpec.configure do |config|
         FakeSession
       end
     end
+  end
+
+  config.after do
+    SockJS::no_debug!
   end
 end
