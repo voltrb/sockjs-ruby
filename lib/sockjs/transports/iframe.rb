@@ -27,9 +27,9 @@ module SockJS
 </html>
       EOB
 
-      def setup_response(response)
+      def setup_response(request, response)
         response.set_content_type(:html)
-        response.set_header("ETag", self.etag(body))
+        response.set_header("ETag", self.etag)
         response.set_cache_control
         response.write(body)
         response
@@ -49,11 +49,11 @@ module SockJS
 
       # Handler.
       def handle_request(request)
-
         if request.fresh?(etag)
           SockJS.debug "Content hasn't been modified."
           empty_response(request, 304)
         else
+          SockJS.debug "Deferring to Transport"
           super
         end
       end

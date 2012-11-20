@@ -35,7 +35,7 @@ describe SockJS::Transports::HTMLFile do
     context "with callback specified" do
       let(:request) do
         @request ||= FakeRequest.new.tap do |request|
-          request.callback = "clbk"
+          request.query_string = {"c" => "clbk"}
           request.path_info = '/a/b/htmlfile'
           request.session_key = 'b'
         end
@@ -67,6 +67,7 @@ describe SockJS::Transports::HTMLFile do
       end
 
       it "should respond with HTML MIME type" do
+        SockJS::debug!
         response.headers["Content-Type"].should match("text/html")
       end
 

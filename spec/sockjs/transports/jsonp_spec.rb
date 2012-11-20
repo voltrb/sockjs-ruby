@@ -145,7 +145,6 @@ describe "JSONP", :em => true, :type => :transport do
             end
 
             it "should respond with HTTP 404" do
-              SockJS::debug!
               response.status.should eql(404)
             end
 

@@ -8,7 +8,7 @@ module SockJS
       class Get < Transport
         register 'GET', "info"
         # Handler.
-        def setup_response(response)
+        def setup_response(request, response)
           response.set_content_type(:json)
           response.set_access_control(request.origin)
           response.set_allow_options_post
@@ -33,7 +33,7 @@ module SockJS
       class Options < Transport
         register 'OPTIONS', 'info'
 
-        def setup_response(response)
+        def setup_response(request, response)
           response.set_allow_options_get
           response.set_cache_control
           response.set_access_control(request.origin)

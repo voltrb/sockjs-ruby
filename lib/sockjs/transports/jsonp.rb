@@ -92,13 +92,6 @@ module SockJS
         response
       end
 
-      def unknown_session(request)
-        raise SockJS::HttpError.new(404, "Session is not open!") { |response|
-          response.set_content_type(:plain)
-          response.set_session_id(request.session_id)
-        }
-      end
-
       def empty_payload
         raise SockJS::HttpError.new(500, "Payload expected.") { |response|
           response.set_content_type(:html)

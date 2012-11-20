@@ -7,7 +7,7 @@ module SockJS
     class WelcomeScreen < Transport
       register 'GET', ''
 
-      def setup_response(response)
+      def setup_response(request, response)
         response.set_content_type(:plain)
         response.write("Welcome to SockJS!\n")
       end

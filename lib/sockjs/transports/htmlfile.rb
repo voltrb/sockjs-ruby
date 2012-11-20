@@ -32,11 +32,14 @@ module SockJS
         session.wait(response)
       end
 
+      def setup_response(request, response)
+        response.set_content_type(:html)
+        response.set_no_cache
+      end
+
       def opening_response(session, request)
         if request.callback
-          response = response_class.new(request, 200)
-          response.set_content_type(:html)
-          response.set_no_cache
+          response = build_response(request, 200)
           response.set_session_id(request.session_id)
 
           response.write(HTML_PREFIX)
@@ -44,14 +47,14 @@ module SockJS
           response.write(HTML_POSTFIX)
           response
         else
-          sessionless_response(request, 500) do |response|
+          raise SockJS::HttpError.new(500, '"callback" parameter required') {|response|
+            response.set_no_cache
             response.set_content_type(:html)
-            response.write('"callback" parameter required')
-          end
+          }
         end
       end
 
-      def format_frame(payload)
+      def format_frame(session, payload)
         raise TypeError.new("Payload must not be nil!") if payload.nil?
 
         "<script>\nprint(#{payload.to_json});\n</script>\r\n"
