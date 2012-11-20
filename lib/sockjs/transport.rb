@@ -198,7 +198,7 @@ module SockJS
     #      i) There IS a consumer -> Send c[2010,"Another con still open"] AND END
     def handle_session_unavailable(error, response)
       session = error.session
-      session.response = response
+      session.response = error.response
       session.finish
     end
 
@@ -217,7 +217,7 @@ module SockJS
         session = connection.get_session(session_key(request))
         return session.receive_request(request, self)
       rescue SockJS::SessionUnavailableError => error
-        handle_session_unavailable(error, response)
+        handle_session_unavailable(error)
       end
     end
 
@@ -225,9 +225,17 @@ module SockJS
       request.data.string
     end
 
+    def unknown_session(request)
+      response = build_response(request)
+      response.set_content_type(:plain)
+      response.set_session_id(request.session_id)
+      return response
+    end
+
     def opening_response(session, request)
       #default assumption is that the transport can't open sessions
-      raise SockJS::SessionUnavailableError.new(session)
+      response = unknown_session(request)
+      raise SockJS::SessionUnavailableError.new(session, response)
     end
 
     def continuing_response(session, request)
