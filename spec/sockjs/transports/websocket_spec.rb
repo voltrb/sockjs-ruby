@@ -6,69 +6,67 @@ require "spec_helper"
 require "sockjs"
 require "sockjs/transports/websocket"
 
-describe SockJS::Transports::WebSocket do
+describe SockJS::Transports::WebSocket, :type => :transport do
   transport_handler_eql "/websocket", "GET"
 
-  # TODO: This should be a mixin.
-  def transport(options = Hash.new)
-    connection = SockJS::Connection.new {}
-    connection.session_open {}
-    # TODO: In fact the first argument should always be the transport,
-    # we should replace 'self' by the following code in all the specs.
-    described_class.new(connection, options).tap do |transport|
-      # TODO: Use Connection#create_session instead of
-      # instantiating FakeSession manually.
-      connection.create_session("b", transport, FakeSession)
-    end
+  let :request_options do
+    {}
   end
 
-  def request(opts = Hash.new)
+  let :request do
     env = {
       "HTTP_CONNECTION" => "Upgrade",
       "HTTP_UPGRADE" => "WebSocket"}
-    FakeRequest.new(env.merge(opts)).tap do |request|
+    FakeRequest.new(env.merge(request_options)).tap do |request|
       request.path_info = "/a/b/websocket"
     end
   end
 
-  def response(transport = transport, request = request)
-    transport.handle(request)
-  end
-
   describe "#handle(request)" do
-    it "should respond with 404 and an error message if the transport is disabled" do
-      options   = {:websocket => false}
-      transport = transport(options)
-      response  = response(transport, request)
+    context "if the transport is disabled" do
+      let :transport_options do
+        {:websocket => false}
+      end
 
-      transport.should be_disabled
+      it "should report itself disabled" do
+        transport.should be_disabled
+      end
 
-      response.status.should eql(404)
-      response.chunks.last.should eql("WebSockets Are Disabled")
+      it "should respond with 404 and an error message" do
+        response.status.should eql(404)
+        response.chunks.last.should eql("WebSockets Are Disabled")
+      end
     end
 
-    it "should respond with 400 and an error message if HTTP_UPGRADE isn't WebSocket" do
-      request  = request("HTTP_UPGRADE" => "something")
-      response = response(transport, request)
+    context "if HTTP_UPGRADE isn't WebSocket" do
+      let :request_options do
+        { "HTTP_UPGRADE" => "something" }
+      end
 
-      response.status.should eql(400)
-      response.chunks.last.should eql('Can "Upgrade" only to "WebSocket".')
+      it "should respond with 400 and an error message" do
+        response.status.should eql(400)
+        response.chunks.last.should eql('Can "Upgrade" only to "WebSocket".')
+      end
     end
 
-    it "should respond with 400 and an error message if HTTP_CONNECTION isn't Upgrade" do
-      request  = request("HTTP_CONNECTION" => "something")
-      response = response(transport, request)
 
-      response.status.should eql(400)
-      response.chunks.last.should eql('"Connection" must be "Upgrade".')
+    context "if HTTP_CONNECTION isn't Upgrade" do
+      let :request_options do
+        {"HTTP_CONNECTION" => "something"}
+      end
+
+      it "should respond with 400 and an error message" do
+        response.status.should eql(400)
+        response.chunks.last.should eql('"Connection" must be "Upgrade".')
+      end
     end
 
     # The following three statements are meant to be documentation rather than specs itselves.
-    it "should call #handle_open(request) when the connection is being open" do end
+    it "should call #handle_open(request) when the connection is being open"
 
-    it "should call #handle_message(request, event) on a new message" do end
+    it "should call #handle_message(request, event) on a new message"
 
-    it "should call #handle_close(request, event) when the connection is being closed" do end
+    it "should call #handle_close(request, event) when the connection is being closed"
   end
 
   describe "#handle_open(request)" do
@@ -97,7 +95,9 @@ describe SockJS::Transports::WebSocket do
 
   describe "#format_frame(payload)" do
     it "should raise an error if payload is nil" do
-      -> { transport.format_frame(nil) }.should raise_error(TypeError)
+      expect do
+        transport.format_frame(nil)
+      end.to raise_error(TypeError)
     end
 
     it "should return the payload without adding \\n" do

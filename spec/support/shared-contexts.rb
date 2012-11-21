@@ -20,12 +20,15 @@ shared_context "Transport", :type => :transport do
     "b"
   end
 
+  let :transport_options do
+    {}
+  end
 
   let(:transport) do
     if self.respond_to?(:prior_transport)
       connection.sessions[existing_session_key] = session
     end
-    described_class.new(connection, {})
+    described_class.new(connection, transport_options)
   end
 
   let(:response) do
