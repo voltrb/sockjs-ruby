@@ -201,6 +201,7 @@ describe "JSONP", :em => true, :type => :transport do
             end
 
             it "should return error message in the body" do
+              SockJS::debug!
               response.chunks.last.should match(/Session is not open\!/)
             end
           end

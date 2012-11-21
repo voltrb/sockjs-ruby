@@ -67,7 +67,6 @@ describe SockJS::Transports::HTMLFile do
       end
 
       it "should respond with HTML MIME type" do
-        SockJS::debug!
         response.headers["Content-Type"].should match("text/html")
       end
 

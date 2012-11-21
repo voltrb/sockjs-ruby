@@ -7,10 +7,11 @@ require 'rack/mount'
 
 module SockJS
   class SessionUnavailableError < StandardError
-    attr_reader :status, :session
+    attr_reader :session
+    attr_accessor :response
 
-    def initialize(session, status = nil, message = nil)
-      @session, @status, @message = session, status, message
+    def initialize(session, response = nil)
+      @session, @response = session, response
     end
   end
 
@@ -133,9 +134,14 @@ module SockJS
 
     def handle(request)
       handle_request(request)
+    rescue SockJS::HttpError => error
+      SockJS.debug "HttpError while handling request: #{([error.inspect] + error.backtrace).join("\n")}"
+      error.to_response(self, request)
     rescue Object => error
       SockJS.debug "Error while handling request: #{([error.inspect] + error.backtrace).join("\n")}"
-      error_response(error, request)
+      response = response_class.new(request, 500)
+      response.write(error.message)
+      response.finish
     end
 
     def handle_request(request)
@@ -159,18 +165,6 @@ module SockJS
       SockJS.debug "There's no block for response(request, #{status}, #{options.inspect}), closing the response."
       response.finish
       return response
-    end
-
-    def error_response(error, request)
-      SockJS.debug "Error raised: #{error.inspect}"
-      case error
-      when SockJS::HttpError
-        error.to_response(self, request)
-      else
-        response = response_class.new(request, 500)
-        response.write(error.message)
-        response.finish
-      end
     end
   end
 
@@ -196,10 +190,14 @@ module SockJS
     #   b) It's open:
     #      i) There IS NOT any consumer -> OK. AND CONTINUE
     #      i) There IS a consumer -> Send c[2010,"Another con still open"] AND END
-    def handle_session_unavailable(error, response)
-      session = error.session
-      session.response = error.response
-      session.finish
+    def handle_session_unavailable(error, request)
+      error.session.close
+
+      response = build_response(request, 404)
+      response.set_content_type(:plain)
+      response.set_session_id(request.session_id)
+      response.write("Session is not open!")
+      return response
     end
 
     def server_key(request)
@@ -217,7 +215,7 @@ module SockJS
         session = connection.get_session(session_key(request))
         return session.receive_request(request, self)
       rescue SockJS::SessionUnavailableError => error
-        handle_session_unavailable(error)
+        handle_session_unavailable(error, request)
       end
     end
 
@@ -225,17 +223,10 @@ module SockJS
       request.data.string
     end
 
-    def unknown_session(request)
-      response = build_response(request)
-      response.set_content_type(:plain)
-      response.set_session_id(request.session_id)
-      return response
-    end
 
     def opening_response(session, request)
       #default assumption is that the transport can't open sessions
-      response = unknown_session(request)
-      raise SockJS::SessionUnavailableError.new(session, response)
+      raise SockJS::SessionUnavailableError.new(session)
     end
 
     def continuing_response(session, request)

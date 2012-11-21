@@ -23,6 +23,14 @@ module SockJS
         transition_to(:opening)
         @response
       end
+
+      handle :close do |status, message|
+        close_session(status || 3000, message || "Go away!")
+      end
+
+      handle :finish do
+        #No response to close up
+      end
     end
 
     state :opening do
@@ -246,9 +254,6 @@ module SockJS
         messages = parse_json(data)
         process_messages(*messages) unless messages.empty?
       end
-    rescue SockJS::InvalidJSON => error
-      raise error if @response.nil? # WS
-      @transport.error_response(error, request)
     end
 
     def process_messages(*messages)
