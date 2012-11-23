@@ -12,7 +12,7 @@ describe "XHR", :type => :transport, :em => true do
 
     describe "#handle(request)" do
       let(:prior_transport) do
-        xprt = SockJS::Transports::XHRPost.new(connection, Hash.new)
+        xprt = SockJS::Transports::XHRPost.new(connection, {})
         def xprt.send; end
         xprt
       end
@@ -50,7 +50,6 @@ describe "XHR", :type => :transport, :em => true do
 
       context "without a session" do
         it "should create one and send an opening frame" do
-          response # Run the handler.
           response.chunks.last.should eql("o\n")
         end
 

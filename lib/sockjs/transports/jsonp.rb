@@ -62,6 +62,8 @@ module SockJS
     class JSONPSend < SessionTransport
       register 'POST', 'jsonp_send'
 
+      cant_open
+
       # Handler.
       def request_data(request)
         if request.content_type == "application/x-www-form-urlencoded"

@@ -24,10 +24,10 @@ module SockJS
         @response
       end
 
-      handle :close do |status, message|
-        close_session(status || 3000, message || "Go away!")
-      end
-
+#      handle :close do |status, message|
+#        close_session(status || 3000, message || "Go away!")
+#      end
+#
       handle :finish do
         #No response to close up
       end
@@ -367,7 +367,7 @@ module SockJS
     protected
     def parse_json(data)
       if data.empty?
-        raise SockJS::InvalidJSON.new(500, "Payload expected.")
+        return []
       end
 
       JSON.parse(data)

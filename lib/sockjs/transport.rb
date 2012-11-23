@@ -181,6 +181,10 @@ module SockJS
   end
 
   class SessionTransport < Transport
+    def self.cant_open
+      alias_method :create_session, :session_unavailable!
+    end
+
     def self.routing_prefix
       ::Rack::Mount::Strexp.new("/:server_key/:session_key/#{self.prefix}")
     end
@@ -190,9 +194,8 @@ module SockJS
     #   b) It's open:
     #      i) There IS NOT any consumer -> OK. AND CONTINUE
     #      i) There IS a consumer -> Send c[2010,"Another con still open"] AND END
-    def handle_session_unavailable(error, request)
-      error.session.close
-
+    def handle_session_unavailable(request)
+      SockJS::debug("Handling missing session for #{request.inspect}")
       response = build_response(request, 404)
       response.set_content_type(:plain)
       response.set_session_id(request.session_id)
@@ -208,21 +211,32 @@ module SockJS
       (request.env['rack.routing_args'] || {})['session-key']
     end
 
+    def create_session(request)
+      connection.create_session(session_key(request))
+    end
+
+    def session_unavailable!(request)
+      raise SessionUnavailableError.new(request)
+    end
+
     def handle_request(request)
-      SockJS::debug(request.inspect)
+      SockJS::debug({:Request => request, :Transport => self}.inspect)
 
       begin
         session = connection.get_session(session_key(request))
-        return session.receive_request(request, self)
-      rescue SockJS::SessionUnavailableError => error
-        handle_session_unavailable(error, request)
+      rescue KeyError
+        SockJS::debug("Missing session for #{session_key(request)}")
+        session = create_session(request)
       end
+
+      return session.receive_request(request, self)
+    rescue SockJS::SessionUnavailableError => error
+      handle_session_unavailable(request)
     end
 
     def request_data(request)
       request.data.string
     end
-
 
     def opening_response(session, request)
       #default assumption is that the transport can't open sessions

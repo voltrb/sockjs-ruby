@@ -53,6 +53,7 @@ module SockJS
 
     class XHRSendPost < SessionTransport
       register 'POST', 'xhr_send'
+      cant_open
 
       def continuing_response(session, request)
         response = response_class.new(request, 204)
