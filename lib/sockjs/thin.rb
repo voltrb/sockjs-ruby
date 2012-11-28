@@ -1,5 +1,6 @@
 # encoding: utf-8
 
+require 'thin'
 require "thin/request"
 require "thin/response"
 require "thin/connection"

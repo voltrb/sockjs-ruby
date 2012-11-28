@@ -2,6 +2,7 @@
 #
 require 'alter_ego'
 require 'sockjs/protocol'
+require 'sockjs/callbacks'
 
 module SockJS
   class Session
@@ -24,10 +25,6 @@ module SockJS
         @response
       end
 
-#      handle :close do |status, message|
-#        close_session(status || 3000, message || "Go away!")
-#      end
-#
       handle :finish do
         #No response to close up
       end
@@ -42,11 +39,14 @@ module SockJS
       end
 
       handle :disconnect_expired do
-        close
       end
+
       handle :check_status do
         transition_to :open
         @transport.session_opened(self)
+      end
+      handle :finish do
+        #No response to close up
       end
     end
 
