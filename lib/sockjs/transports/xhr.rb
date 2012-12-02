@@ -9,6 +9,15 @@ module SockJS
 
       include Transactional
 
+      def session_opened(session)
+        session.close_response
+      end
+
+      def session_continues(session)
+        session.process_buffer
+        session.close_response
+      end
+
       def opening_response(session, request)
         response = response_class.new(request, 200)
 
@@ -18,19 +27,10 @@ module SockJS
         response
       end
 
-      def session_opened(session)
-        session.close_response
-      end
-
       def continuing_response(session, request)
         response = response_class.new(request, 200)
         response.set_content_type(:plain)
         response
-      end
-
-      def session_continues(session)
-        session.process_buffer
-        session.close_response
       end
     end
 
@@ -55,6 +55,10 @@ module SockJS
       register 'POST', 'xhr_send'
       cant_open
 
+      def session_continues(session)
+        session.close_response
+      end
+
       def continuing_response(session, request)
         response = response_class.new(request, 204)
 
@@ -64,10 +68,6 @@ module SockJS
         response.write_head
 
         response
-      end
-
-      def session_continues(session)
-        session.close_response
       end
 
       #XXX Maybe this needs to close the session - here or in SessionTransport
@@ -87,14 +87,14 @@ module SockJS
 
       register 'POST', 'xhr_streaming'
 
+      def session_opening(session)
+        session.wait
+      end
+
       def opening_response(session, request)
         response = build_response(request, 200)
         request.on_close{ session.on_close }
         return response
-      end
-
-      def session_opening(session)
-        session.wait
       end
 
       def setup_response(request, response)

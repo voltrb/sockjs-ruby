@@ -12,16 +12,18 @@ module SockJS
       self.execute_callback(:open, self)
     end
 
+    #XXX TODO: remove dead sessions as they're get_session'd, along with a
+    #recurring clearout
     def sessions
       SockJS.debug "Refreshing sessions"
 
       if @sessions
         @sessions.delete_if do |_, session|
-          if session.closed?
+          unless session.alive?
             SockJS.debug "Removing closed session #{_}"
           end
 
-          session.closed?
+          !session.alive?
         end
       else
         @sessions = {}

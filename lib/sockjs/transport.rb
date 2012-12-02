@@ -168,18 +168,6 @@ module SockJS
     end
   end
 
-  #Transaction transports exchange data with clients on a request/response
-  #basis.  As a result, client application messages need to be queued for the
-  #next client request.
-  module Transactional
-    def data_queued(session)
-    end
-
-    def session_continues(session)
-      session.send_transmit_queue
-    end
-  end
-
   class SessionTransport < Transport
     def self.cant_open
       alias_method :create_session, :session_unavailable!
@@ -251,10 +239,22 @@ module SockJS
       session.close_response
     end
 
-    def session_continues(session)
+    def data_queued(session)
+      session.send_transmit_queue
     end
 
+    def session_continues(session)
+    end
+  end
+
+  #Transaction transports exchange data with clients on a request/response
+  #basis.  As a result, client application messages need to be queued for the
+  #next client request.
+  module Transactional
     def data_queued(session)
+    end
+
+    def session_continues(session)
       session.send_transmit_queue
     end
   end

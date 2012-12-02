@@ -1,22 +1,37 @@
 # encoding: utf-8
 #
-require 'alter_ego'
+require 'meta-state'
 require 'sockjs/protocol'
 require 'sockjs/callbacks'
 
 module SockJS
-  class Session
-    include AlterEgo
+  class Session < MetaState::Machine
     include CallbackMixin
 
-    state :fresh, :default => true do
-      on_enter do
+    module StateDefaults
+      def alive?
+        true
+      end
+
+      def disconnect_expired
+      end
+
+      def finish
+        #No response to close up
+      end
+
+      def check_status
+      end
+    end
+
+    state :Fresh do
+      include StateDefaults
+
+      def on_enter
         self.transport = nil
       end
 
-      handle(:disconnect_expired){}
-
-      handle :receive_request do |request, transport|
+      def receive_request(request, transport)
         @transport = transport
         data = transport.request_data(request)
         SockJS.debug "Building an opening response..."
@@ -24,38 +39,85 @@ module SockJS
         transition_to(:opening)
         @response
       end
-
-      handle :finish do
-        #No response to close up
-      end
     end
 
-    state :opening do
-      on_enter do
-        handle_send_data(Protocol::OpeningFrame.instance)
+    state :Opening do
+      include StateDefaults
+      def on_enter
+        write_frame_to_response(Protocol::OpeningFrame.instance)
 
         set_timer
         set_alive_checker
       end
 
-      handle :disconnect_expired do
-      end
-
-      handle :check_status do
+      def check_status
         transition_to :open
         @transport.session_opened(self)
       end
-      handle :finish do
-        #No response to close up
+    end
+
+    state :Open do
+      include StateDefaults
+      def on_enter
+        execute_callback(:open, self)
+        set_heartbeat_timer
+      end
+
+      def process_buffer(timer_reset = true)
+        if timer_reset
+          reset_timer {
+            app_response
+          }
+        else
+          app_response
+        end
+
+        create_response
+      rescue SockJS::NoContentError => error
+        set_heartbeat_timer
+      rescue SockJS::CloseError => error
+        Protocol::ClosingFrame.new(error.status, error.message)
+      end
+
+      def send_data(frame)
+        write_frame_to_response(frame)
+      end
+
+      def finish
+        send_transmit_queue
+      end
+
+      def close(status = 3000, message = "Go away!")
+        @closing_frame = Protocol::ClosingFrame.new(status, message)
+
+        finish
+        write_frame_to_response(@closing_frame)
+        finish_response
+
+        transition_to(:closing)
+      end
+
+      def send_heartbeat
+        write_frame_to_response(Protocol::HeartbeatFrame.instance)
+      end
+
+      def disconnect_expired
+        close
+      end
+
+      def close_response
+        SockJS.debug "close_response: clearing response and transport."
+        transition_to(:idle)
       end
     end
 
-    state :idle do
-      on_enter do
+    state :Idle do
+      include StateDefaults
+      def on_enter
         finish_response
       end
 
-      handle :receive_request do |request, transport|
+      def receive_request(request, transport)
         data = transport.request_data(request)
         SockJS.debug "Building a continuing response..."
         response = @response = transport.continuing_response(self, request)
@@ -65,137 +127,93 @@ module SockJS
         response
       end
 
-      handle :close do |status, message|
-        close_session(status || 3000, message || "Go away!")
+      def close(status = 3000, message = "Go away!")
+        @closing_frame = Protocol::ClosingFrame.new(status, message)
+        transition_to(:closing)
       end
-
-      handle :finish do
-        #No response to close up
-      end
-
-      transition :to => :closing
-      transition :to => :open
     end
 
-    state :open do
-      on_enter do
-        execute_callback(:open, self)
-        set_heartbeat_timer
-      end
-
-      handle(:check_status){}
-      handle :process_buffer, :handle_process_buffer
-      handle :send_data, :handle_send_data
-
-      handle :finish do
-        send_data(outbox_frame)
-      end
-
-      handle :close do |status, message|
-        close_session(status || 3000, message || "Go away!")
-      end
-      handle :send_heartbeat do
-        send_data(Protocol::HeartbeatFrame.instance)
-      end
-
-      handle :disconnect_expired do
-        close
-      end
-
-      handle :close_response do
-        SockJS.debug "close_response: clearing response and transport."
-        transition_to(:idle)
-      end
-
-      transition :to => :idle
-      transition :to => :waiting, :on => :wait
-      transition :to => :closing
-    end
-
-    state :waiting do
-      on_enter do
+    state :Waiting do
+      include StateDefaults
+      def on_enter
         run_user_app(response)
         set_timer
         init_periodic_timer
       end
 
-      handle(:disconnect_expired){}
-      handle :send_data, :handle_send_data
+      def send_data
+        write_frame_to_response
+      end
+
       #XXX when do we start the heartbeat timer?
-      handle :send_heartbeat do
-        send_data(Protocol::HeartbeatFrame.instance)
+      def send_heartbeat
+        write_frame_to_response(Protocol::HeartbeatFrame.instance)
       end
 
-      handle :finish do
-        send_data(outbox_frame)
+      def finish
+        write_frame_to_response(outbox_frame)
       end
 
-      handle :close_response do
+      def close_response
         SockJS.debug "close_response: clearing response and transport."
         transition_to(:idle)
       end
 
-      handle :wait do
+      #XXX
+      def wait
         SockJS.debug "Session#wait: another connection still open"
         close(2010, "Another connection still open")
       end
     end
 
     #XXX State names are, IMO, confusing. Consider "closed" and "finalized"
-    state :closing do
-      on_enter do
+    state :Closing do
+      include StateDefaults
+      def on_enter
         finish
         cancel_timers
         reset_close_timer
       end
 
-      handle :close do
+      def close(status=nil, message=nil)
         cancel_timers
       end
 
-      handle :send_data do
-        handle_send_data(@closing_frame)
+      def send_data
+        write_frame_to_response(@closing_frame)
       end
 
-      handle :finish do
-        send_data(@closing_frame)
-        finish_response
+      def finish
       end
 
-      transition :to => :closed, :on => :mark_to_be_garbage_collected do
+      def mark_to_be_garbage_collected
         SockJS.debug "Closing the session"
+        transition_to(:closed)
       end
-
-      handle(:disconnect_expired){}
     end
 
-    state :closed do
-      handle(:disconnect_expired){}
-      handle :close do
+    state :Closed do
+      include StateDefaults
+
+      def close(state=nil, message=nil)
         :cancel_timers
       end
-    end
 
-    request_filter :new_state => :opening do
-      !(@transport.nil? or @response.nil?)
-    end
-
-    request_filter :new_state => :open do
-      !@transport.nil?
-    end
-
-    request_filter :new_state => :waiting do
-      !@response.nil?
-    end
-
-    request_filter :new_state => :closing do
-      !(@closing_frame.nil?)
+      def alive?
+        false
+      end
     end
 
     attr_accessor :disconnect_delay, :interval
     attr_reader :transport, :response, :outbox, :closing_frame, :data
 
     def initialize(callbacks)
+      super()
+
+      debug_with do |msg|
+        SockJS::debug(msg)
+      end
+
       @callbacks = callbacks
       @disconnect_delay = 5 # TODO: make this configurable.
       @received_messages = []
@@ -206,7 +224,7 @@ module SockJS
       @data = {}
     end
 
-    def handle_send_data(frame)
+    def write_frame_to_response(frame)
       data = @transport.format_frame(self, frame.to_s)
 
       @total_sent_content_length += data.bytesize
@@ -279,22 +297,6 @@ module SockJS
       self.after_app_run
     end
 
-    def handle_process_buffer(timer_reset = true)
-      if timer_reset
-        reset_timer {
-          app_response
-        }
-      else
-        app_response
-      end
-
-      create_response
-    rescue SockJS::NoContentError => error
-      set_heartbeat_timer
-    rescue SockJS::CloseError => error
-      Protocol::ClosingFrame.new(error.status, error.message)
-    end
-
     def create_response
       if @outbox.empty?
         nil
@@ -303,12 +305,6 @@ module SockJS
         @outbox.clear
         result
       end
-    end
-
-    # Set the internal state to closing
-    def close_session(status = 3000, message = "Go away")
-      @closing_frame = Protocol::ClosingFrame.new(status, message)
-      transition_to(:closing)
     end
 
     def cancel_timers

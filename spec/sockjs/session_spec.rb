@@ -134,29 +134,24 @@ describe SockJS::Session do
     end
 
     it "should do nothing if status isn't opening" do
-      session.state = :closed
+      closed_session
+      session.callback_run=false
 
-      session.should_not be_open
+      session.check_status
       session.callback_run.should be_false
     end
   end
 
   describe "opening a session" do
-    it "should change status to opening" do
-      opening_session
-      session.should be_opening
-    end
-
     it "should call session.set_timer" do
       session.should_receive(:set_timer)
       opening_session
     end
 
     it "should call the session.finish method" do
-      opening_session
-      session.check_status
+      SockJS::debug!
       session.should_receive(:finish)
-
+      open_session
       session.close
     end
   end

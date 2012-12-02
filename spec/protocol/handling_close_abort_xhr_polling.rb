@@ -68,6 +68,8 @@ describe SockJS::Transports::XHRPost do
   class Ticker
     def initialize
       @beats = []
+      yield self
+      finish
     end
 
     def tick(&block)
@@ -88,50 +90,54 @@ describe SockJS::Transports::XHRPost do
 
   it "should handle closes correctly" do
     SockJS::debug!
-    ticker = Ticker.new
     chunks = []
-    env2 = env.merge({"REQUEST_METHOD" => "POST", "PATH_INFO" => url_base + "/xhr"})
-
-    ticker.tick do
-      env_callbacks(env2, chunks)
-      puts "Opening one"
-      app.call(env2).should == thin_async_signal
-    end
-
-    ticker.tick do
-      chunks.join("").should == "o\n"
-      env2["async.close"].succeed
-    end
-
+    env2 = env.merge({
+      "REQUEST_METHOD" => "POST",
+      "PATH_INFO" => url_base + "/xhr"
+    })
     env3 = env.merge({
       "REQUEST_METHOD" => "POST",
       "PATH_INFO" => url_base + "/xhr",
       "HTTP_X_REQIDX" => "one"
     })
-
-    one_chunks = []
-
     env4 = env.merge({
       "REQUEST_METHOD" => "POST",
       "PATH_INFO" => url_base + "/xhr",
       "HTTP_X_REQIDX" => "two"
     })
+
+    one_chunks = []
     two_chunks = []
 
-    ticker.tick do
-      env_callbacks(env3, one_chunks)
-      app.call(env3).should == thin_async_signal
+    Ticker.new do |ticker|
 
-      env_callbacks(env4, two_chunks)
-      app.call(env4).should == thin_async_signal
+      ticker.tick do
+        env_callbacks(env2, chunks)
+        puts "Opening one"
+        app.call(env2).should == thin_async_signal
+      end
+
+      ticker.tick do
+        chunks.join("").should == "o\n"
+        env2["async.close"].succeed
+      end
+
+      ticker.tick do
+        env_callbacks(env3, one_chunks)
+        app.call(env3).should == thin_async_signal
+      end
+
+      ticker.tick do
+        env_callbacks(env4, two_chunks)
+        app.call(env4).should == thin_async_signal
+      end
+
+      ticker.tick do
+        one_chunks.join("").should == 'o\n'
+        two_chunks.join("").should == 'c[2010,"Another connection still open"]\n'
+      end
+
     end
-
-    ticker.tick do
-      one_chunks.join("").should == 'o\n'
-      two_chunks.join("").should == 'c[2010,"Another connection still open"]\n'
-    end
-
-    ticker.finish
 
 
 #        print "Reopening one"
