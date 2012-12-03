@@ -1,0 +1,2 @@
+lib/sockjs/faye.rb
+lib/sockjs/thin.rb

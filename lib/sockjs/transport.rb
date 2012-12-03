@@ -1,7 +1,8 @@
 # encoding: utf-8
 
 require "sockjs/session"
-require "sockjs/servers/thin"
+require "sockjs/servers/request"
+require "sockjs/servers/response"
 
 require 'rack/mount'
 
@@ -15,7 +16,11 @@ module SockJS
     end
   end
 
-  class Transport
+  class MissingSessionError < StandardError
+
+  end
+
+  class Endpoint
     class MethodMap
       def initialize(map)
         @method_map = map
@@ -58,9 +63,9 @@ module SockJS
     module ClassMethods
       def add_routes(route_set, connection, options)
         method_catching = Hash.new{|h,k| h[k] = []}
-        @transports.each do |transport_class|
-          transport_class.add_route(route_set, connection, options)
-          method_catching[transport_class.routing_prefix] << transport_class.method
+        @endpoints.each do |endpoint_class|
+          endpoint_class.add_route(route_set, connection, options)
+          method_catching[endpoint_class.routing_prefix] << endpoint_class.method
         end
         method_catching.each_pair do |prefix, methods|
           route_set.add_route(MethodNotSupportedApp.new(methods), {:path_info => prefix}, {})
@@ -87,14 +92,14 @@ module SockJS
         route_set.add_route(self.new(connection, options), route_conditions, {})
       end
 
-      def transports
-        @transports ||= []
+      def endpoints
+        @endpoints ||= []
       end
 
       def register(method, prefix)
         @prefix = prefix
         @method = method
-        Transport.transports << self
+        Endpoint.endpoints << self
       end
       attr_reader :prefix, :method
     end
@@ -108,9 +113,8 @@ module SockJS
       options[:cookie_needed] = true unless options.has_key?(:cookie_needed)
     end
 
-    # TODO: Make it use the adapter user uses.
     def response_class
-      SockJS::Thin::Response
+      SockJS::Response
     end
 
     # Used for pings.
@@ -125,11 +129,18 @@ module SockJS
     end
 
     def call(env)
-      request = ::SockJS::Thin::Request.new(env)
+      request = ::SockJS::Request.new(env)
       EM.next_tick do
-        handle(request)
+        begin
+          handle(request)
+        rescue Object => error
+          SockJS.debug "Error while handling request: #{([error.inspect] + error.backtrace).join("\n")}"
+          response = response_class.new(request, 500)
+          response.write(error.message)
+          response.finish
+        end
       end
-      ::SockJS::Thin::DUMMY_RESPONSE
+      return Thin::Connection::AsyncResponse
     end
 
     def handle(request)
@@ -137,27 +148,22 @@ module SockJS
     rescue SockJS::HttpError => error
       SockJS.debug "HttpError while handling request: #{([error.inspect] + error.backtrace).join("\n")}"
       error.to_response(self, request)
-    rescue Object => error
-      SockJS.debug "Error while handling request: #{([error.inspect] + error.backtrace).join("\n")}"
-      response = response_class.new(request, 500)
-      response.write(error.message)
-      response.finish
     end
 
     def handle_request(request)
-      response = build_response(request, 200)
+      response = build_response(request)
       response.finish
       return response
     end
 
     def build_response(request, status)
-      response = response_class.new(request, status)
+      response = response_class.new(request)
       setup_response(request, response)
       return response
     end
-    alias sessionless_response build_response
 
     def setup_response(request, response)
+      response.status = 200
     end
 
     def empty_response(request, status)
@@ -168,20 +174,22 @@ module SockJS
     end
   end
 
-  class SessionTransport < Transport
-    def self.cant_open
-      alias_method :create_session, :session_unavailable!
-    end
-
+  class Transport < Endpoint
     def self.routing_prefix
       ::Rack::Mount::Strexp.new("/:server_key/:session_key/#{self.prefix}")
     end
 
-    # There's a session:
-    #   a) It's closing -> Send c[3000,"Go away!"] AND END
-    #   b) It's open:
-    #      i) There IS NOT any consumer -> OK. AND CONTINUE
-    #      i) There IS a consumer -> Send c[2010,"Another con still open"] AND END
+    def handle_request(request)
+      SockJS::debug({:Request => request, :Transport => self}.inspect)
+
+      response = build_response(request)
+      session = get_session(response)
+
+      process_session(session, response)
+    rescue SockJS::SessionUnavailableError => error
+      handle_session_unavailable(request)
+    end
+
     def handle_session_unavailable(request)
       SockJS::debug("Handling missing session for #{request.inspect}")
       response = build_response(request, 404)
@@ -199,63 +207,76 @@ module SockJS
       (request.env['rack.routing_args'] || {})['session-key']
     end
 
-    def create_session(request)
-      connection.create_session(session_key(request))
-    end
-
-    def session_unavailable!(request)
-      raise SessionUnavailableError.new(request)
-    end
-
-    def handle_request(request)
-      SockJS::debug({:Request => request, :Transport => self}.inspect)
-
-      begin
-        session = connection.get_session(session_key(request))
-      rescue KeyError
-        SockJS::debug("Missing session for #{session_key(request)}")
-        session = create_session(request)
-      end
-
-      return session.receive_request(request, self)
-    rescue SockJS::SessionUnavailableError => error
-      handle_session_unavailable(request)
-    end
-
     def request_data(request)
       request.data.string
     end
+  end
 
-    def opening_response(session, request)
-      #default assumption is that the transport can't open sessions
-      raise SockJS::SessionUnavailableError.new(session)
+  class ConsumingTransport < Transport
+    def process_session(session, response)
+      session.attach_consumer(response, self)
+      response.request.on_close do
+        request_closed(session)
+      end
     end
 
-    def continuing_response(session, request)
-      raise NotImplementedError
+    def request_closed(session)
+      session.detach_consumer
     end
 
-    def session_opened(session)
-      session.close_response
+    def opening_frame(response)
+      response.write(format_frame(Protocol::OpeningFrame.instance))
     end
 
-    def data_queued(session)
-      session.send_transmit_queue
+    def heartbeat_frame(response)
+      response.write(format_frame(Protocol::HeartbeatFrame.instance))
     end
 
-    def session_continues(session)
+    def messages_frame(response, messages)
+      response.write(format_frame(Protocol::ArrayFrame.new(message)))
+    end
+
+    def closing_frame(response, status, message)
+      response.write(format_frame(Protocol::ClosingFrame.new(status, message)))
+    end
+
+    def get_session(response)
+      begin
+        return connection.get_session(session_key(response.request))
+      rescue KeyError
+        SockJS::debug("Missing session for #{session_key(response.request)} - creating new")
+        session = connection.create_session(session_key(response.request))
+        opening_frame(response)
+        return session
+      end
     end
   end
 
-  #Transaction transports exchange data with clients on a request/response
-  #basis.  As a result, client application messages need to be queued for the
-  #next client request.
-  module Transactional
-    def data_queued(session)
+  class DeliveryTransport < Transport
+    def process_session(session, response)
+      session.receive_message(extract_message(response.request))
+
+      successful_response(response)
     end
 
-    def session_continues(session)
-      session.send_transmit_queue
+    def extract_message(request)
+    end
+
+    def setup_response(response)
+      response.status = 204
+    end
+
+    def successful_response(response)
+      response.finish
+    end
+
+    def get_session(response)
+      begin
+        return connection.get_session(session_key(response.request))
+      rescue KeyError
+        SockJS::debug("Missing session for #{session_key(response.request)} - invalid request")
+        raise MissingSessionError
+      end
     end
   end
 end

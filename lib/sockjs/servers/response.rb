@@ -1,24 +1,88 @@
 # encoding: utf-8
 
+require 'delayed-response-body'
+
 module SockJS
-  # This class is a compatibility layer which makes it possible
-  # to work with Rack as well as with other HTTP libraries, Goliath etc.
-  # This class is not supposed to be instantiated directly, you have to
-  # subclass it and rewrite some library-dependent methods.
-
-  # The API is heavily inspired by Node.js' standard library.
+  #Adapter for Thin Rack responses.  It's a TODO feature to support other
+  #webservers and compatibility layers
   class Response
-    NOT_IMPLEMENTED_PROC ||= Proc.new do |*|
-      raise NotImplementedError.new("This is supposed to be rewritten in subclasses!")
-    end
+    extend Forwardable
+    attr_reader :request, :status, :headers, :body
 
-    attr_reader :headers
-    def initialize(status = nil, headers = Hash.new, body = nil, &block)
-      @status, @headers, @body = status, headers, body || String.new
+    def initialize(request, status = nil, headers = Hash.new, &block)
+      # request.env["async.close"]
+      # ["rack.input"].closed? # it's a stream
+      @request, @status, @headers = request, status, headers
 
-      set_content_length(body) if body && status != 304 || status != 204
+      if request.http_1_0?
+        SockJS.debug "Request is in HTTP/1.0, responding with HTTP/1.0"
+        @body = DelayedResponseBody.new
+      else
+        @body = DelayedResponseChunkedBody.new
+      end
 
       block.call(self) if block
+
+      set_connection_keep_alive_if_requested
+    end
+
+    def session=(session)
+      @body.session = session
+    end
+
+    def turn_chunking_on(headers)
+      headers["Transfer-Encoding"] = "chunked"
+    end
+
+
+    def write_head(status = nil, headers = nil)
+      @status  = status  || @status  || raise("Please set the status!")
+      @headers = headers || @headers
+
+      if @headers["Content-Length"]
+        raise "You can't use Content-Length with chunking!"
+      end
+
+      unless @request.http_1_0? || @status == 204
+        turn_chunking_on(@headers)
+      end
+
+      SockJS.debug "Headers: #{@headers.inspect}"
+      @request.async_callback.call([@status, @headers, @body])
+
+      @head_written = true
+    end
+
+    def head_written?
+      !! @head_written
+    end
+
+    def write(date)
+      self.write_head unless self.head_written?
+
+      @last_written_at = Time.now.to_i
+
+      @body.write(data)
+    end
+
+    def finish(data = nil, &block)
+      if data
+        self.write(data)
+      else
+        self.write_head unless self.head_written?
+      end
+
+      @body.finish
+    end
+
+    def async?
+      true
+    end
+
+
+    # Time.now.to_i shows time in seconds.
+    def due_for_alive_check
+      Time.now.to_i != @last_written_at
     end
 
     def set_status(status)
@@ -29,54 +93,8 @@ module SockJS
       @headers[key] = value
     end
 
-    def set_content_length(body)
-      if body && body.respond_to?(:bytesize)
-        self.headers["Content-Length"] = body.bytesize.to_s
-      end
-    end
-
     def set_session_id(session_id)
       self.headers["Set-Cookie"] = "JSESSIONID=#{session_id}; path=/"
-    end
-
-    def write_head(status = nil, headers = nil, &block)
-      @status  = status  || @status  || raise("Please set the status!")
-      @headers = headers || @headers
-
-      (block || NOT_IMPLEMENTED_PROC).call
-
-      @head_written = true
-    end
-
-    def head_written?
-      !! @head_written
-    end
-
-    def write(&block)
-      self.write_head unless self.head_written?
-
-      @last_written_at = Time.now.to_i
-
-      (block || NOT_IMPLEMENTED_PROC).call
-    end
-
-    def finish(data = nil, &block)
-      if data
-        self.write(data)
-      else
-        self.write_head unless self.head_written?
-      end
-
-      (block || NOT_IMPLEMENTED_PROC).call
-    end
-
-    def async?
-      NOT_IMPLEMENTED_PROC.call
-    end
-
-    # Time.now.to_i shows time in seconds.
-    def due_for_alive_check
-      Time.now.to_i != @last_written_at
     end
 
     # === Helpers === #
@@ -115,6 +133,12 @@ module SockJS
       json: "application/json; charset=UTF-8",
       event_stream: "text/event-stream; charset=UTF-8"
     }
+
+    def set_content_length(body)
+      if body && body.respond_to?(:bytesize)
+        self.headers["Content-Length"] = body.bytesize.to_s
+      end
+    end
 
     def set_content_type(symbol)
       if string = CONTENT_TYPES[symbol]

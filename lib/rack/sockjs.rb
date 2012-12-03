@@ -1,9 +1,9 @@
 # encoding: utf-8
-
 require "sockjs"
 require 'sockjs/version'
 require "sockjs/transport"
-require "sockjs/servers/thin"
+require "sockjs/servers/request"
+require "sockjs/servers/response"
 
 require 'rack/mount'
 
@@ -57,7 +57,7 @@ module Rack
       end
 
       def call(env)
-        request = ::SockJS::Thin::Request.new(env)
+        request = ::SockJS::Request.new(env)
         headers = request.headers.select { |key, value| not %w{version host accept-encoding}.include?(key.to_s) }
         ::SockJS.puts "\n~ \e[31m#{request.http_method} \e[32m#{request.path_info.inspect}#{" " + headers.inspect unless headers.empty?} \e[0m(\e[34m#{@prefix} app\e[0m)"
         headers = headers.map { |key, value| "-H '#{key}: #{value}'" }.join(" ")
