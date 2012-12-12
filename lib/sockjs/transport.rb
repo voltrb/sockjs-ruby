@@ -125,9 +125,13 @@ module SockJS
           handle(request)
         rescue Object => error
           SockJS.debug "Error while handling request: #{([error.inspect] + error.backtrace).join("\n")}"
-          response = response_class.new(request, 500)
-          response.write(error.message)
-          response.finish
+          begin
+            response = response_class.new(request, 500)
+            response.write(error.message)
+            response.finish
+          rescue Object => ex
+            SockJS.debug "Error while trying to send error HTTP response: #{ex.inspect}"
+          end
         end
       end
       return Thin::Connection::AsyncResponse

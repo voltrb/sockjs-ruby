@@ -57,10 +57,6 @@ module SockJS
         ws.object_id.to_s
       end
 
-      def get_session(key)
-        connection.get_session(key)
-      end
-
       def handle_request(request)
         if not @options[:websocket]
           raise HttpError.new(404, "WebSockets Are Disabled")
@@ -91,15 +87,27 @@ module SockJS
         #XXX Facade around websocket?
 
         web_socket.onopen = lambda do |event|
-          session.attach_consumer(web_socket, self)
+          begin
+            session.attach_consumer(web_socket, self)
+          rescue Object => ex
+            SockJS::debug "Error opening (#{event.inspect}) websocket: #{ex.inspect}"
+          end
         end
 
         web_socket.onmessage = lambda do |event|
-          session.receive_message(extract_message(event))
+          begin
+            session.receive_message(extract_message(event))
+          rescue Object => ex
+            SockJS::debug "Error receiving message on websocket (#{event.inspect}): #{ex.inspect}"
+          end
         end
 
         web_socket.onclose = lambda do |event|
-          session.close
+          begin
+            session.close
+          rescue Object => ex
+            SockJS::debug "Error closing websocket (#{event.inspect}): #{ex.inspect}"
+          end
         end
       end
 
@@ -133,6 +141,8 @@ module SockJS
         messages.each do |message|
           send_data(message.to_json)
         end
+      rescue Object => ex
+        SockJS::debug "Error delivering messages to raw websocket: #{messages.inspect} #{ex.inspect}"
       end
 
       def closing_frame(response, status, message)

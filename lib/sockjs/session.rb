@@ -24,7 +24,7 @@ module SockJS
       end
 
       def closing(status, message)
-        transport.closing_frame(status, message)
+        transport.closing_frame(response, status, message)
       end
 
       #XXX Still not sure what this is *FOR*
