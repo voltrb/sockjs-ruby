@@ -57,7 +57,8 @@ end
 desc "Run the protocol test server"
 task :protocol_test, [:port] do |task, args|
   require "thin"
-  require "eventmachine"
+  require 'em/pure_ruby'
+  #require "eventmachine"
   require 'sockjs/examples/protocol_conformance_test'
 
   $DEBUG = true
@@ -73,7 +74,7 @@ task :protocol_test, [:port] do |task, args|
   end
 
   SockJS.debug!
-  SockJS.debug "Available handlers: #{::SockJS::Transport.transports.inspect}"
+  SockJS.debug "Available handlers: #{::SockJS::Endpoint.endpoints.inspect}"
 
   protocol_version = args[:version] || SockJS::PROTOCOL_VERSION
   options = {sockjs_url: "http://cdn.sockjs.org/sockjs-#{protocol_version}.min.js"}

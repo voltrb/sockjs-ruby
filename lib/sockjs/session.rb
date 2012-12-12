@@ -283,7 +283,9 @@ module SockJS
 
 
     def set_alive_timer
-      set_timer(:alive_check, EM::PeriodicTimer, 1, &:check_response_alive)
+      set_timer(:alive_check, EM::PeriodicTimer, 1) do
+        check_response_alive
+      end
     end
 
     def reset_alive_timer
@@ -294,7 +296,9 @@ module SockJS
     def set_heartbeat_timer
       clear_timer(:disconnect)
       clear_timer(:alive)
-      set_timer(:heartbeat, EM::PeriodicTimer, 25, &:heartbeat_triggered)
+      set_timer(:heartbeat, EM::PeriodicTimer, 25) do
+        heartbeat_triggered
+      end
     end
 
     def reset_heartbeat_timer
@@ -303,7 +307,9 @@ module SockJS
     end
 
     def set_disconnect_timer
-      set_timer(:disconnect, EM::Timer, @disconnect_delay, &:disconnect_expired)
+      set_timer(:disconnect, EM::Timer, @disconnect_delay) do
+        disconnect_expired
+      end
     end
 
     def reset_disconnect_timer
