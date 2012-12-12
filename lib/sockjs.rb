@@ -50,17 +50,7 @@ module SockJS
     def initialize(status, message, &block)
       @message = message
       @status = status
-      @block = block
-    end
-
-    def to_response(adapter, request)
-      response = adapter.sessionless_response(request, self.status)
-
-      response.set_content_type(:plain)
-      @block.call(response) if @block
-      SockJS::debug "Built error response: #{response.inspect}"
-      response.write(self.message) if self.message
-      response
+      raise "Block passed to HttpError" unless block.nil?
     end
   end
 

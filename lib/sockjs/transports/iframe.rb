@@ -5,7 +5,7 @@ require "sockjs/transport"
 
 module SockJS
   module Transports
-    class IFrame < Transport
+    class IFrame < Endpoint
       register 'GET', %r{/iframe.*[.]html?}
 
       BODY = <<-EOB.freeze
@@ -28,6 +28,7 @@ module SockJS
       EOB
 
       def setup_response(request, response)
+        response.status = 200
         response.set_content_type(:html)
         response.set_header("ETag", self.etag)
         response.set_cache_control
@@ -51,7 +52,10 @@ module SockJS
       def handle_request(request)
         if request.fresh?(etag)
           SockJS.debug "Content hasn't been modified."
-          empty_response(request, 304)
+          response = build_response(request)
+          response.status = 304
+          response.finish
+          return response
         else
           SockJS.debug "Deferring to Transport"
           super

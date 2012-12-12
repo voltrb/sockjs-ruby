@@ -1,6 +1,6 @@
 # encoding: utf-8
 
-require 'eventmachine/deferrable'
+require 'eventmachine'
 
 module SockJS
   class DelayedResponseBody

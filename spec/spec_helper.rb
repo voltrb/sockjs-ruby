@@ -2,6 +2,12 @@
 
 require 'support/async-test.rb'
 require 'support/shared-contexts'
+require 'stringio'
+require 'thin'
+require 'sockjs'
+require 'sockjs/servers/request'
+require 'sockjs/servers/response'
+require 'sockjs/session'
 
 module TransportSpecMacros
   def transport_handler_eql(path, method)
@@ -32,11 +38,7 @@ module TransportSpecMacros
   end
 end
 
-require "stringio"
-
-require 'thin'
-require 'sockjs/servers/thin'
-class FakeRequest < SockJS::Thin::Request
+class FakeRequest < SockJS::Request
   attr_reader :chunks
   attr_writer :data
   attr_accessor :path_info, :query_string, :if_none_match, :content_type
@@ -86,9 +88,6 @@ class FakeRequest < SockJS::Thin::Request
   end
 end
 
-require "sockjs"
-require "sockjs/session"
-
 class FakeSession < SockJS::Session
   def set_timer
   end
@@ -97,16 +96,14 @@ class FakeSession < SockJS::Session
   end
 end
 
-require 'thin'
-require "sockjs/servers/thin"
-
-class SockJS::Thin::Response
+class SockJS::Response
   def chunks
     @request.chunks
   end
 end
 
 RSpec.configure do |config|
+  config.backtrace_clean_patterns.delete(/gems/)
   config.extend(TransportSpecMacros)
   config.before do
     class SockJS::Transport

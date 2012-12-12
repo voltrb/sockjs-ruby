@@ -5,7 +5,7 @@ require "sockjs/transport"
 module SockJS
   module Transports
     class Info
-      class Get < Transport
+      class Get < Endpoint
         register 'GET', "info"
         # Handler.
         def setup_response(request, response)
@@ -30,7 +30,7 @@ module SockJS
         end
       end
 
-      class Options < Transport
+      class Options < Endpoint
         register 'OPTIONS', 'info'
 
         def setup_response(request, response)

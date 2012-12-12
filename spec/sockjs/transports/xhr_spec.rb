@@ -11,12 +11,6 @@ describe "XHR", :type => :transport, :em => true do
     transport_handler_eql "/xhr", "POST"
 
     describe "#handle(request)" do
-      let(:prior_transport) do
-        xprt = SockJS::Transports::XHRPost.new(connection, {})
-        def xprt.send; end
-        xprt
-      end
-
       let(:request) do
         FakeRequest.new.tap do |request|
           request.session_key = Array.new(7) { rand(256) }.pack("C*").unpack("H*").first
@@ -25,6 +19,10 @@ describe "XHR", :type => :transport, :em => true do
       end
 
       context "with a session" do
+        before :each do
+          session
+        end
+
         let(:request) do
           FakeRequest.new.tap do |request|
             request.path_info = "/xhr"
@@ -36,19 +34,17 @@ describe "XHR", :type => :transport, :em => true do
           response.status.should eql(200)
         end
 
-        it "should respond with plain text MIME type" do
-          response.headers["Content-Type"].should match("text/plain")
+        it "should respond with javascript MIME type" do
+          response.headers["Content-Type"].should match("application/javascript")
         end
 
-        it "should run user code" do
-          session = transport.connection.sessions["b"]
-          session.stub!(:process_buffer).and_return("msg")
-
-          response
-        end
+        it "should run user code"
       end
 
       context "without a session" do
+        let :session do
+        end
+
         it "should create one and send an opening frame" do
           response.chunks.last.should eql("o\n")
         end
@@ -109,12 +105,6 @@ describe "XHR", :type => :transport, :em => true do
     transport_handler_eql "/xhr_send", "POST"
 
     describe "#handle(request)" do
-      let(:prior_transport) do
-        xprt = SockJS::Transports::XHRPost.new(connection, Hash.new)
-        def xprt.send; end
-        xprt
-      end
-
       let(:request) do
         FakeRequest.new.tap do |request|
           request.session_key = rand(1 << 32).to_s
@@ -123,11 +113,15 @@ describe "XHR", :type => :transport, :em => true do
       end
 
       context "with a session" do
+        let! :session do
+          transport.connection.create_session("b")
+        end
+
         let(:request) do
           FakeRequest.new.tap do |request|
             request.path_info = "/xhr_send"
             request.session_key = 'b'
-            request.data = '"message"'
+            request.data = '["message"]'
           end
         end
 

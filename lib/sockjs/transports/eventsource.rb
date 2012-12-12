@@ -4,15 +4,12 @@ require "sockjs/transport"
 
 module SockJS
   module Transports
-    class EventSource < SessionTransport
+    class EventSource < ConsumingTransport
       register 'GET', 'eventsource'
 
-      def session_opening(session)
-        session.wait
-      end
+      def setup_response(request, response)
+        response.status = 200
 
-      def opening_response(session, request)
-        response = response_class.new(request, 200)
         response.set_content_type(:event_stream)
         response.set_session_id(request.session_id)
         response.set_no_cache
@@ -23,10 +20,10 @@ module SockJS
         response
       end
 
-      def format_frame(session, payload)
-        raise TypeError.new("Payload must not be nil!") if payload.nil?
+      def format_frame(response, frame)
+        raise TypeError.new("Payload must not be nil!") if frame.nil?
 
-        ["data: ", payload, "\r\n\r\n"].join
+        ["data: ", super, "\r\n\r\n"].join
       end
     end
   end

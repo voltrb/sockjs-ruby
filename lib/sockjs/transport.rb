@@ -8,16 +8,6 @@ require 'rack/mount'
 
 module SockJS
   class SessionUnavailableError < StandardError
-    attr_reader :session
-    attr_accessor :response
-
-    def initialize(session, response = nil)
-      @session, @response = session, response
-    end
-  end
-
-  class MissingSessionError < StandardError
-
   end
 
   class Endpoint
@@ -63,7 +53,7 @@ module SockJS
     module ClassMethods
       def add_routes(route_set, connection, options)
         method_catching = Hash.new{|h,k| h[k] = []}
-        @endpoints.each do |endpoint_class|
+        endpoints.each do |endpoint_class|
           endpoint_class.add_route(route_set, connection, options)
           method_catching[endpoint_class.routing_prefix] << endpoint_class.method
         end
@@ -147,7 +137,7 @@ module SockJS
       handle_request(request)
     rescue SockJS::HttpError => error
       SockJS.debug "HttpError while handling request: #{([error.inspect] + error.backtrace).join("\n")}"
-      error.to_response(self, request)
+      handle_http_error(request, error)
     end
 
     def handle_request(request)
@@ -156,21 +146,32 @@ module SockJS
       return response
     end
 
-    def build_response(request, status)
+    def error_content_type
+      :plain
+    end
+
+    def handle_http_error(request, error)
+      response = build_error_response(request)
+      response.status = error.status
+
+      response.set_content_type(error_content_type)
+      SockJS::debug "Built error response: #{response.inspect}"
+      response.write(error.message)
+      response
+    end
+
+    def build_response(request)
       response = response_class.new(request)
       setup_response(request, response)
       return response
     end
 
-    def setup_response(request, response)
-      response.status = 200
+    def build_error_response(request)
+      build_response(request)
     end
 
-    def empty_response(request, status)
-      response = build_response(request, status)
-      SockJS.debug "There's no block for response(request, #{status}, #{options.inspect}), closing the response."
-      response.finish
-      return response
+    def setup_response(request, response)
+      response.status = 200
     end
   end
 
@@ -186,24 +187,41 @@ module SockJS
       session = get_session(response)
 
       process_session(session, response)
+
+      return response
+    rescue SockJS::InvalidJSON => error
+      exception_response(request, error, 500)
     rescue SockJS::SessionUnavailableError => error
       handle_session_unavailable(request)
     end
 
+    def exception_response(request, error, status)
+      SockJS::debug("Handling error #{error.inspect}")
+      response = build_response(request)
+      response.status = status
+      response.set_content_type(:plain)
+      response.set_session_id(request.session_id)
+      response.write(error.message)
+      return response
+    end
+
     def handle_session_unavailable(request)
       SockJS::debug("Handling missing session for #{request.inspect}")
-      response = build_response(request, 404)
+      response = build_response(request)
+      response.status = 404
       response.set_content_type(:plain)
       response.set_session_id(request.session_id)
       response.write("Session is not open!")
       return response
     end
 
-    def server_key(request)
+    def server_key(response)
+      request = response.request
       (request.env['rack.routing_args'] || {})['server-key']
     end
 
-    def session_key(request)
+    def session_key(response)
+      request = response.request
       (request.env['rack.routing_args'] || {})['session-key']
     end
 
@@ -224,31 +242,51 @@ module SockJS
       session.detach_consumer
     end
 
+    def send_data(response, data)
+      response.write(data)
+    end
+
+    def finish_response(response)
+      response.finish
+    end
+
     def opening_frame(response)
-      response.write(format_frame(Protocol::OpeningFrame.instance))
+      send_data(response, format_frame(response, Protocol::OpeningFrame.instance))
     end
 
     def heartbeat_frame(response)
-      response.write(format_frame(Protocol::HeartbeatFrame.instance))
+      send_data(response, format_frame(response, Protocol::HeartbeatFrame.instance))
     end
 
     def messages_frame(response, messages)
-      response.write(format_frame(Protocol::ArrayFrame.new(message)))
+      send_data(response, format_frame(response, Protocol::ArrayFrame.new(messages)))
     end
 
     def closing_frame(response, status, message)
-      response.write(format_frame(Protocol::ClosingFrame.new(status, message)))
+      send_data(response, format_frame(response, Protocol::ClosingFrame.new(status, message)))
+      finish_response(response)
+    end
+
+    def format_frame(response, frame)
+      frame.to_s + "\n"
     end
 
     def get_session(response)
       begin
-        return connection.get_session(session_key(response.request))
+        return connection.get_session(session_key(response))
       rescue KeyError
-        SockJS::debug("Missing session for #{session_key(response.request)} - creating new")
-        session = connection.create_session(session_key(response.request))
+        SockJS::debug("Missing session for #{session_key(response)} - creating new")
+        session = connection.create_session(session_key(response))
         opening_frame(response)
         return session
       end
+    end
+  end
+
+  class PollingConsumingTransport < ConsumingTransport
+    def process_session(session, response)
+      super
+      response.finish
     end
   end
 
@@ -260,6 +298,7 @@ module SockJS
     end
 
     def extract_message(request)
+      return request.data.read
     end
 
     def setup_response(response)
@@ -272,10 +311,10 @@ module SockJS
 
     def get_session(response)
       begin
-        return connection.get_session(session_key(response.request))
+        return connection.get_session(session_key(response))
       rescue KeyError
-        SockJS::debug("Missing session for #{session_key(response.request)} - invalid request")
-        raise MissingSessionError
+        SockJS::debug("Missing session for #{session_key(response)} - invalid request")
+        raise SessionUnavailableError
       end
     end
   end

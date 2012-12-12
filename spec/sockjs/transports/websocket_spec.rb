@@ -93,18 +93,6 @@ describe SockJS::Transports::WebSocket, :type => :transport do
     it "should open a new session"
   end
 
-  describe "#format_frame(payload)" do
-    it "should raise an error if payload is nil" do
-      expect do
-        transport.format_frame(nil)
-      end.to raise_error(TypeError)
-    end
-
-    it "should return the payload without adding \\n" do
-      transport.format_frame("o").should eql("o")
-    end
-  end
-
   describe "#send" do
     it "should be defined, but it should do nothing" do
       transport.should respond_to(:send)

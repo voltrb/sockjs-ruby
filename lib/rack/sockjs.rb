@@ -15,7 +15,6 @@ require "sockjs/transports/eventsource"
 require "sockjs/transports/htmlfile"
 require "sockjs/transports/iframe"
 require "sockjs/transports/jsonp"
-require "sockjs/transports/raw_websocket"
 require "sockjs/transports/websocket"
 require "sockjs/transports/welcome_screen"
 require "sockjs/transports/xhr"
@@ -150,7 +149,7 @@ module Rack
       options = DEFAULT_OPTIONS.merge(options)
 
       @routing = Rack::Mount::RouteSet.new do |set|
-        ::SockJS::Transport.add_routes(set, connection, options)
+        ::SockJS::Endpoint.add_routes(set, connection, options)
 
         set.add_route(MissingHandler.new(options), {}, {}, :missing)
       end

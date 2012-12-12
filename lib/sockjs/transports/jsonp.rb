@@ -4,68 +4,44 @@ require "sockjs/transport"
 
 module SockJS
   module Transports
-
-    # This is the receiver.
-    class JSONP < SessionTransport
+    class JSONP < PollingConsumingTransport
       register 'GET', 'jsonp'
 
-      #XXX May cause issues with single transport
-      #Move callback_function to response?
-      attr_accessor :callback_function
-
-      def callback_required_response
-        raise (HttpError.new(500, '"callback" parameter required'){|response|
-          response.set_content_type(:html)
-        })
+      def error_content_type
+        :html
       end
 
-      def opening_response(session, request)
-        if request.callback
-          session.data[:callback] = request.callback
-          response = response_class.new(request, 200)
+      def setup_response(request, response)
+        response.status = 200
+        response.set_content_type(:javascript)
+        response.set_access_control(request.origin)
+        response.set_no_cache
+        response.set_session_id(request.session_id)
+        return response
+      end
 
-          response.set_content_type(:javascript)
-          response.set_access_control(request.origin)
-          response.set_no_cache
-          response.set_session_id(request.session_id)
-          return response
+      def process_session(session, response)
+        if response.request.callback
+          super
         else
-          callback_required_response
+          raise HttpError.new(500, '"callback" parameter required')
         end
       end
 
-      def continuing_response(session, request)
-        if request.callback
-          session.data[:callback] = request.callback
-          response = response_class.new(request, 200)
-          response.set_content_type(:plain)
-          return response
-        else
-          callback_required_response
-        end
-      end
-
-      def response_opened(session)
-        session.process_buffer
-      end
-
-      def format_frame(session, payload)
+      def format_frame(response, payload)
         raise TypeError.new("Payload must not be nil!") if payload.nil?
 
         # Yes, JSONed twice, there isn't a better way, we must pass
         # a string back, and the script, will be evaled() by the browser.
-        "#{session.data[:callback]}(#{payload.chomp.to_json});\r\n"
+        "#{response.request.callback}(#{super.chomp.to_json});\r\n"
       end
     end
 
-    # This is the sender.
-    class JSONPSend < SessionTransport
+    class JSONPSend < DeliveryTransport
       register 'POST', 'jsonp_send'
 
-      cant_open
-
       # Handler.
-      def request_data(request)
+      def extract_message(request)
         if request.content_type == "application/x-www-form-urlencoded"
           raw_data = request.data.read || empty_payload
           begin
@@ -85,19 +61,23 @@ module SockJS
         data
       end
 
-      def continuing_response(session, request)
-        response = response_class.new(request, 200)
-
+      def setup_response(request, response)
+        response.status = 200
         response.set_content_type(:plain)
         response.set_session_id(request.session_id)
+      end
+
+      def successful_response(response)
         response.write("ok")
-        response
+        response.finish
+      end
+
+      def error_content_type
+        :html
       end
 
       def empty_payload
-        raise SockJS::HttpError.new(500, "Payload expected.") { |response|
-          response.set_content_type(:html)
-        }
+        raise SockJS::HttpError.new(500, "Payload expected.")
       end
     end
   end

@@ -39,6 +39,14 @@ module SockJS
       async_close.errback(  &block)
     end
 
+    def succeed
+      async_close.succeed
+    end
+
+    def fail
+      async_close.fail
+    end
+
     # request.headers["origin"]
     # => http://foo.bar
     def headers

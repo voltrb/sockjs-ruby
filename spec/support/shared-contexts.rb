@@ -9,15 +9,12 @@ shared_context "Transport", :type => :transport do
     end
   end
 
-  let(:session) do
-    FakeSession.new({:open => []}).tap do |session|
-      session.receive_request(open_request, prior_transport)
-      session.check_status
-    end
-  end
-
   let(:existing_session_key) do
     "b"
+  end
+
+  let(:session) do
+    connection.create_session(existing_session_key)
   end
 
   let :transport_options do
@@ -25,9 +22,6 @@ shared_context "Transport", :type => :transport do
   end
 
   let(:transport) do
-    if self.respond_to?(:prior_transport)
-      connection.sessions[existing_session_key] = session
-    end
     described_class.new(connection, transport_options)
   end
 

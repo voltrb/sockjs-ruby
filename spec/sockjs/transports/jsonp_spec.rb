@@ -45,7 +45,7 @@ describe "JSONP", :em => true, :type => :transport do
           end
 
           it "should respond with plain text MIME type" do
-            response.headers["Content-Type"].should match("text/plain")
+            response.headers["Content-Type"].should match("application/javascript")
           end
 
           it "should respond with a body"
@@ -97,10 +97,6 @@ describe "JSONP", :em => true, :type => :transport do
     transport_handler_eql "/jsonp_send", "POST"
 
     describe "#handle(request)" do
-      let(:prior_transport) do
-        SockJS::Transports::JSONP.new(connection, {})
-      end
-
       let(:request) do
         FakeRequest.new.tap do |request|
           request.path_info = "/a/_/jsonp_send"
@@ -111,12 +107,16 @@ describe "JSONP", :em => true, :type => :transport do
         context "with application/x-www-form-urlencoded" do
           # TODO: test with invalid data like d=sth, we should get Broken encoding.
           context "with a valid session" do
+            before :each do
+              session
+            end
+
             let(:request) do
               FakeRequest.new.tap do |request|
                 request.path_info = "/jsonp_send"
-                request.session_key = "b"
+                request.session_key = existing_session_key
                 request.content_type = "application/x-www-form-urlencoded"
-                request.data = "d=%22sth%22"
+                request.data = "d=%5B%22x%22%5D"
               end
             end
 
@@ -136,6 +136,9 @@ describe "JSONP", :em => true, :type => :transport do
           end
 
           context "without a valid session" do
+            let :session do
+            end
+
             let(:request) do
               FakeRequest.new.tap do |request|
                 request.path_info = "/a/_/jsonp_send"
@@ -162,11 +165,15 @@ describe "JSONP", :em => true, :type => :transport do
 
         context "with any other MIME type" do
           context "with a valid session" do
+            before :each do
+              session
+            end
+
             let(:request) do
               FakeRequest.new.tap do |request|
                 request.path_info = "/jsonp_send"
-                request.data = '"data"'
-                request.session_key = "b"
+                request.data = '["data"]'
+                request.session_key = existing_session_key
               end
             end
 
@@ -186,6 +193,9 @@ describe "JSONP", :em => true, :type => :transport do
           end
 
           context "without a valid session" do
+            let :session do
+            end
+
             let(:request) do
               FakeRequest.new.tap do |request|
                 request.path_info = "/a/_/jsonp_send"
@@ -210,18 +220,8 @@ describe "JSONP", :em => true, :type => :transport do
 
       [nil, "", "d=", "f=test"].each do |data|
         context "with data = #{data.inspect}" do
-          let :prior_transport do
-            SockJS::Transports::JSONP.new(connection, {})
-          end
-
-          let :open_request do
-            FakeRequest.new.tap do |request|
-              request.path_info = "/jsonp_send"
-              request.session_key = "b"
-              request.content_type = "application/x-www-form-urlencoded"
-              request.query_string = {"c" => "callback"}
-              request.data = URI.encode_www_form('d' => 'data')
-            end
+          before :each do
+            session
           end
 
           let(:request) do

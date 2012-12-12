@@ -1,6 +1,6 @@
 # encoding: utf-8
 
-require 'delayed-response-body'
+require 'sockjs/delayed-response-body'
 
 module SockJS
   #Adapter for Thin Rack responses.  It's a TODO feature to support other
@@ -8,6 +8,7 @@ module SockJS
   class Response
     extend Forwardable
     attr_reader :request, :status, :headers, :body
+    attr_writer :status
 
     def initialize(request, status = nil, headers = Hash.new, &block)
       # request.env["async.close"]
@@ -19,6 +20,14 @@ module SockJS
         @body = DelayedResponseBody.new
       else
         @body = DelayedResponseChunkedBody.new
+      end
+
+      @body.callback do
+        @request.succeed
+      end
+
+      @body.errback do
+        @request.fail
       end
 
       block.call(self) if block
@@ -57,7 +66,7 @@ module SockJS
       !! @head_written
     end
 
-    def write(date)
+    def write(data)
       self.write_head unless self.head_written?
 
       @last_written_at = Time.now.to_i
