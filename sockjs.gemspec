@@ -34,16 +34,13 @@ Gem::Specification.new do |s|
     lib/alter_ego.rb
     lib/rack/sockjs.rb
     lib/sockjs.rb
-    lib/sockjs/buffer.rb
     lib/sockjs/callbacks.rb
     lib/sockjs/connection.rb
     lib/sockjs/examples/protocol_conformance_test.rb
     lib/sockjs/faye.rb
     lib/sockjs/protocol.rb
-    lib/sockjs/servers/rack.rb
     lib/sockjs/servers/request.rb
     lib/sockjs/servers/response.rb
-    lib/sockjs/servers/thin.rb
     lib/sockjs/session.rb
     lib/sockjs/thin.rb
     lib/sockjs/transport.rb
@@ -52,12 +49,10 @@ Gem::Specification.new do |s|
     lib/sockjs/transports/iframe.rb
     lib/sockjs/transports/info.rb
     lib/sockjs/transports/jsonp.rb
-    lib/sockjs/transports/raw_websocket.rb
     lib/sockjs/transports/websocket.rb
     lib/sockjs/transports/welcome_screen.rb
     lib/sockjs/transports/xhr.rb
     lib/sockjs/version.rb
-    spec/sockjs/buffer_spec.rb
     spec/sockjs/protocol_spec.rb
     spec/sockjs/session_spec.rb
     spec/sockjs/transport_spec.rb
