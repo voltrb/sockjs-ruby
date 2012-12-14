@@ -10,6 +10,9 @@ module SockJS
   class SessionUnavailableError < StandardError
   end
 
+  #If I had it to do over again, Endpoint wouldn't have subclasses - we'd
+  #subclass Response and instances of Endpoint would know what kind of Response
+  #to create for their mount point
   class Endpoint
     class MethodMap
       def initialize(map)
@@ -32,6 +35,7 @@ module SockJS
       end
 
       def response
+        ::SockJS.debug "Method not supported! (app)"
         @response ||=
           [405, {"Allow" => @allowed_methods.join(",")}, []].freeze
       end
@@ -79,6 +83,7 @@ module SockJS
       end
 
       def add_route(route_set, connection, options)
+        #SockJS.debug "Adding route for #{self} on #{route_conditions.inspect}"
         route_set.add_route(self.new(connection, options), route_conditions, {})
       end
 
@@ -103,6 +108,10 @@ module SockJS
       options[:cookie_needed] = true unless options.has_key?(:cookie_needed)
     end
 
+    def inspect
+      "<<#{self.class.name} #{options.inspect}>>"
+    end
+
     def response_class
       SockJS::Response
     end
@@ -119,20 +128,10 @@ module SockJS
     end
 
     def call(env)
+      SockJS.debug "Request for #{self.class}: #{env["REQUEST_METHOD"]}/#{env["PATH_INFO"]}"
       request = ::SockJS::Request.new(env)
       EM.next_tick do
-        begin
-          handle(request)
-        rescue Object => error
-          SockJS.debug "Error while handling request: #{([error.inspect] + error.backtrace).join("\n")}"
-          begin
-            response = response_class.new(request, 500)
-            response.write(error.message)
-            response.finish
-          rescue Object => ex
-            SockJS.debug "Error while trying to send error HTTP response: #{ex.inspect}"
-          end
-        end
+        handle(request)
       end
       return Thin::Connection::AsyncResponse
     end
@@ -142,6 +141,16 @@ module SockJS
     rescue SockJS::HttpError => error
       SockJS.debug "HttpError while handling request: #{([error.inspect] + error.backtrace).join("\n")}"
       handle_http_error(request, error)
+    rescue Object => error
+      SockJS.debug "Error while handling request: #{([error.inspect] + error.backtrace).join("\n")}"
+      begin
+        response = response_class.new(request, 500)
+        response.write(error.message)
+        response.finish
+        return response
+      rescue Object => ex
+        SockJS.debug "Error while trying to send error HTTP response: #{ex.inspect}"
+      end
     end
 
     def handle_request(request)
@@ -179,11 +188,14 @@ module SockJS
     end
   end
 
-  class Transport < Endpoint
+  class SessionEndpoint < Endpoint
     def self.routing_prefix
-      ::Rack::Mount::Strexp.new("/:server_key/:session_key/#{self.prefix}")
+      legal_key_regexp = %r{[^./]+}
+      ::Rack::Mount::Strexp.new("/:server_key/:session_key/#{self.prefix}", {:server_key => legal_key_regexp, :session_key => legal_key_regexp})
     end
+  end
 
+  class Transport < SessionEndpoint
     def handle_request(request)
       SockJS::debug({:Request => request, :Transport => self}.inspect)
 
@@ -199,6 +211,9 @@ module SockJS
       handle_session_unavailable(request)
     end
 
+    def response_beginning(response)
+    end
+
     def exception_response(request, error, status)
       SockJS::debug("Handling error #{error.inspect}")
       response = build_response(request)
@@ -206,6 +221,7 @@ module SockJS
       response.set_content_type(:plain)
       response.set_session_id(request.session_id)
       response.write(error.message)
+      SockJS::debug("Error response: #{response.inspect}")
       return response
     end
 
@@ -221,12 +237,12 @@ module SockJS
 
     def server_key(response)
       request = response.request
-      (request.env['rack.routing_args'] || {})['server-key']
+      (request.env['rack.routing_args'] || {})[:server_key]
     end
 
     def session_key(response)
       request = response.request
-      (request.env['rack.routing_args'] || {})['session-key']
+      (request.env['rack.routing_args'] || {})[:session_key]
     end
 
     def request_data(request)
@@ -238,16 +254,16 @@ module SockJS
     def process_session(session, response)
       session.attach_consumer(response, self)
       response.request.on_close do
-        request_closed(session)
+        begin
+          request_closed(session)
+        rescue Object => ex
+          SockJS::debug "Exception when closing request: #{ex.inspect}"
+        end
       end
     end
 
     def request_closed(session)
       session.detach_consumer
-    end
-
-    def send_data(response, data)
-      response.write(data)
     end
 
     def finish_response(response)
@@ -271,16 +287,25 @@ module SockJS
       finish_response(response)
     end
 
+    #TODO: Consider absorbing format_frame into send_data
+    def send_data(response, data)
+      response.write(data)
+      return data.length
+    end
+
     def format_frame(response, frame)
       frame.to_s + "\n"
     end
 
     def get_session(response)
       begin
-        return connection.get_session(session_key(response))
+        session = connection.get_session(session_key(response))
+        response_beginning(response)
+        return session
       rescue KeyError
         SockJS::debug("Missing session for #{session_key(response)} - creating new")
         session = connection.create_session(session_key(response))
+        response_beginning(response)
         opening_frame(response)
         return session
       end
@@ -290,7 +315,7 @@ module SockJS
   class PollingConsumingTransport < ConsumingTransport
     def process_session(session, response)
       super
-      response.finish
+      #response.finish
     end
   end
 
@@ -302,7 +327,9 @@ module SockJS
     end
 
     def extract_message(request)
-      return request.data.read
+      body = request.data.read
+      raise "Payload expected." if body.empty?
+      return body
     end
 
     def setup_response(response)
@@ -315,7 +342,9 @@ module SockJS
 
     def get_session(response)
       begin
-        return connection.get_session(session_key(response))
+        session = connection.get_session(session_key(response))
+        response_beginning(response)
+        return session
       rescue KeyError
         SockJS::debug("Missing session for #{session_key(response)} - invalid request")
         raise SessionUnavailableError

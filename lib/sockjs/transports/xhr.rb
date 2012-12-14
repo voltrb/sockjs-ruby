@@ -4,7 +4,7 @@ require "sockjs/transport"
 
 module SockJS
   module Transports
-    class XHROptions < Endpoint
+    class XHROptions < SessionEndpoint
       register 'OPTIONS', 'xhr'
 
       def setup_response(request, response)
@@ -33,8 +33,6 @@ module SockJS
         response.set_content_type(:plain)
         response.set_access_control(request.origin)
         response.set_session_id(request.session_id)
-        response.write_head
-
         response
       end
     end
@@ -61,6 +59,9 @@ module SockJS
         response.set_content_type(:javascript)
         response.set_access_control(request.origin)
         response.set_session_id(request.session_id)
+      end
+
+      def response_beginning(response)
         response.write_head
         response.write(PREAMBLE)
       end

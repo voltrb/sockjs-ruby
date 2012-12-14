@@ -46,18 +46,17 @@ class FakeRequest < SockJS::Request
   def initialize(env = Hash.new)
     self.env.merge!(env)
     @query_string = {}
+    @chunks = []
   end
 
   def session_key=(value)
     @env['rack.routing_args'] ||= {}
-    @env['rack.routing_args']['session-key'] = value
+    @env['rack.routing_args'][:session_key] = value
   end
 
   def env
     @env ||= {
       "async.callback" => Proc.new do |status, headers, body|
-        @chunks = Array.new
-
         # This is so we can test it.
         # Block passed to body.each will be used
         # as the @body_callback in DelayedResponseBody.

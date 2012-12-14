@@ -47,6 +47,16 @@ module SockJS
       async_close.fail
     end
 
+    #Somehow, default inspect pulls in the whole app...
+    def inspect
+      position = data.pos
+      data.rewind
+      body = data.read
+      "<<#{self.class.name}: #{http_method}/#{path_info} #{body.inspect}>>"
+    ensure
+      data.pos = position
+    end
+
     # request.headers["origin"]
     # => http://foo.bar
     def headers
@@ -54,16 +64,15 @@ module SockJS
         begin
           permitted_keys = /^(CONTENT_(LENGTH|TYPE))$/
 
-            @env.reduce(Hash.new) do |headers, (key, value)|
+          @env.reduce(Hash.new) do |headers, (key, value)|
             if key.match(/^HTTP_(.+)$/) || key.match(permitted_keys)
               headers[$1.downcase.tr("_", "-")] = value
             end
 
-          headers
-            end
+            headers
+          end
         end
     end
-
 
     # request.query_string["callback"]
     # => "myFn"
@@ -95,7 +104,6 @@ module SockJS
     HTTP_1_0     ||= "HTTP/1.0"
     HTTP_VERSION ||= "version"
 
-
     def http_1_0?
       self.headers[HTTP_VERSION] == HTTP_1_0
     end
@@ -111,6 +119,10 @@ module SockJS
     def callback
       callback = self.query_string["callback"] || self.query_string["c"]
       URI.unescape(callback) if callback
+    end
+
+    def keep_alive?
+      headers["connection"].downcase == "keep-alive"
     end
 
     def session_id

@@ -90,7 +90,7 @@ module SockJS
           begin
             session.attach_consumer(web_socket, self)
           rescue Object => ex
-            SockJS::debug "Error opening (#{event.inspect}) websocket: #{ex.inspect}"
+            SockJS::debug "Error opening (#{event.inspect[0..40]}) websocket: #{ex.inspect}"
           end
         end
 
@@ -98,7 +98,8 @@ module SockJS
           begin
             session.receive_message(extract_message(event))
           rescue Object => ex
-            SockJS::debug "Error receiving message on websocket (#{event.inspect}): #{ex.inspect}"
+            SockJS::debug "Error receiving message on websocket (#{event.inspect[0..40]}): #{ex.inspect}"
+            web_socket.close
           end
         end
 
@@ -106,13 +107,18 @@ module SockJS
           begin
             session.close
           rescue Object => ex
-            SockJS::debug "Error closing websocket (#{event.inspect}): #{ex.inspect}"
+            SockJS::debug "Error closing websocket (#{event.inspect[0..40]}): #{ex.inspect}"
           end
         end
       end
 
+      def format_frame(response, frame)
+        frame.to_s
+      end
+
       def send_data(web_socket, data)
         web_socket.send(data)
+        return data.length
       end
 
       def finish_response(web_socket)
@@ -120,7 +126,8 @@ module SockJS
       end
 
       def extract_message(event)
-        [event.data].to_json
+        SockJS.debug "Received message event: #{event.data.inspect}"
+        event.data
       end
     end
 
@@ -137,9 +144,15 @@ module SockJS
       def heartbeat_frame(response)
       end
 
+      def extract_message(event)
+        SockJS.debug "Received message event: #{event.data.inspect}"
+        event.data.to_json
+      end
+
       def messages_frame(websocket, messages)
-        messages.each do |message|
-          send_data(message.to_json)
+        messages.inject(0) do |sent_count, data|
+          send_data(websocket, data)
+          sent_count + data.length
         end
       rescue Object => ex
         SockJS::debug "Error delivering messages to raw websocket: #{messages.inspect} #{ex.inspect}"

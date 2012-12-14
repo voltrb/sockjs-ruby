@@ -46,7 +46,10 @@ module SockJS
     def create_session(session_key)
       SockJS.debug "Creating session at #{session_key.inspect}"
       raise "Session already exists for #{session_key.inspect}" if sessions.has_key?(session_key)
-      sessions[session_key] = Session.new(open: callbacks[:session_open], buffer: callbacks[:subscribe])
+      session = Session.new(open: callbacks[:session_open], buffer: callbacks[:subscribe])
+      sessions[session_key] = session
+      session.opened
+      session
     end
   end
 end

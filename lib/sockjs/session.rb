@@ -12,15 +12,23 @@ module SockJS
       def initialize(response, transport)
         @response = response
         @transport = transport
+        @total_sent_length = 0
       end
-      attr_reader :response, :transport
+      attr_reader :response, :transport, :total_sent_length
+
+      #Close the *response* not the *session*
+      def disconnect
+        @response.finish
+      end
 
       def heartbeat
-        transport.heartbeat_frame(reponse)
+        transport.heartbeat_frame(response)
       end
 
       def messages(items)
-        transport.messages_frame(response, items) unless items.empty?
+        unless items.empty?
+          @total_sent_length += transport.messages_frame(response, items)
+        end
       end
 
       def closing(status, message)
@@ -53,6 +61,11 @@ module SockJS
         transition_to :attached
       end
 
+      def detach_consumer
+        #XXX Not sure if this is the right behavior
+        close(1002,"Connection interrupted")
+      end
+
       def send(*messages)
         @outbox += messages
       end
@@ -69,12 +82,14 @@ module SockJS
         @consumer.messages(@outbox)
         @outbox.clear
         clear_all_timers
+        check_content_length
         set_heartbeat_timer
       end
 
       def attach_consumer(response, transport)
         SockJS.debug "Session#attach_consumer: another connection still open"
         transport.closing_frame(response, 2010, "Another connection still open")
+        close(1002, "Connection interrupted")
       end
 
       def detach_consumer
@@ -83,6 +98,7 @@ module SockJS
 
       def send(*messages)
         @consumer.messages(messages)
+        check_content_length
       end
 
       def send_heartbeat
@@ -120,7 +136,9 @@ module SockJS
     def receive_message(data)
       clear_timer(:disconnect)
 
+      SockJS.debug "Session receiving message: #{data.inspect}"
       messages = parse_json(data)
+      SockJS.debug "Message parsed as: #{messages.inspect}"
       unless messages.empty?
         @received_messages.push(*messages)
       end
@@ -130,6 +148,16 @@ module SockJS
       end
 
       set_disconnect_timer
+    end
+
+    def check_content_length
+      if @consumer.total_sent_length >= max_permitted_content_length
+        SockJS.debug "Maximum content length exceeded, closing the connection."
+
+        @consumer.disconnect
+      else
+        SockJS.debug "Permitted content length: #{@consumer.total_sent_length} of #{max_permitted_content_length}"
+      end
     end
 
     def run_user_app
@@ -142,24 +170,24 @@ module SockJS
 
         @received_messages.each do |message|
           SockJS.debug "Executing app with message #{message.inspect}"
-          self.execute_callback(:buffer, self, message)
+          process_message(message)
         end
         @received_messages.clear
 
         after_app_run
 
         SockJS.debug "User's SockJS app finished"
-
-        if @total_sent_content_length >= max_permitted_content_length
-          SockJS.debug "Maximum content length exceeded, closing the connection."
-
-          close(3000, "Maximum content length exceeded")
-        else
-          SockJS.debug "Permitted content length: #{@total_sent_content_length} of #{max_permitted_content_length}"
-        end
       end
     rescue SockJS::CloseError => error
       Protocol::ClosingFrame.new(error.status, error.message)
+    end
+
+    def process_message(message)
+      execute_callback(:buffer, self, message)
+    end
+
+    def opened
+      execute_callback(:open, self)
     end
 
     def after_app_run
@@ -207,7 +235,7 @@ module SockJS
         return []
       end
 
-      JSON.parse(data)
+      JSON.parse("[#{data}]")[0]
     rescue JSON::ParserError => error
       raise SockJS::InvalidJSON.new(500, "Broken JSON encoding.")
     end

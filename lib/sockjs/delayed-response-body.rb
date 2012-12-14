@@ -39,10 +39,9 @@ module SockJS
     end
 
     def succeed(from_server = true)
-      if $DEBUG
-        SockJS.debug "Closing the response #{caller[5..-8].map { |item| item.sub(Dir.pwd + "/lib/", "") }.inspect}."
-      else
-        SockJS.debug "Closing the response."
+      SockJS.debug "Closing the response."
+      if $DEBUG and false
+        SockJS.debug caller[0..-8].map { |item| item.sub(Dir.pwd + "/lib/", "") }.inspect
       end
 
       @status = :closed
@@ -69,6 +68,7 @@ module SockJS
     end
 
     def __write__(data)
+      SockJS.debug "Data to client %% #{data.inspect}"
       @body_callback.call(data)
     end
   end

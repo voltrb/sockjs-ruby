@@ -9,6 +9,7 @@ module SockJS
         register 'GET', "info"
         # Handler.
         def setup_response(request, response)
+          response.status = 200
           response.set_content_type(:json)
           response.set_access_control(request.origin)
           response.set_allow_options_post
@@ -34,17 +35,12 @@ module SockJS
         register 'OPTIONS', 'info'
 
         def setup_response(request, response)
+          response.status = 204
           response.set_allow_options_get
           response.set_cache_control
           response.set_access_control(request.origin)
           response.set_session_id(request.session_id)
           response.write_head
-        end
-
-        def handle_request(request)
-          response = build_response(request, 204)
-          response.finish
-          return response
         end
       end
     end

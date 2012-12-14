@@ -6,7 +6,7 @@ require "sockjs/transport"
 module SockJS
   module Transports
     class IFrame < Endpoint
-      register 'GET', %r{/iframe.*[.]html?}
+      register 'GET', %r{/iframe[^/]*[.]html}
 
       BODY = <<-EOB.freeze
 <!DOCTYPE html>
@@ -29,10 +29,8 @@ module SockJS
 
       def setup_response(request, response)
         response.status = 200
-        response.set_content_type(:html)
         response.set_header("ETag", self.etag)
         response.set_cache_control
-        response.write(body)
         response
       end
 
@@ -58,7 +56,11 @@ module SockJS
           return response
         else
           SockJS.debug "Deferring to Transport"
-          super
+          response = build_response(request)
+          response.set_content_type(:html)
+          response.write(body)
+          response.finish
+          return response
         end
       end
     end

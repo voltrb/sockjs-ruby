@@ -113,40 +113,75 @@ describe "XHR", :type => :transport, :em => true do
       end
 
       context "with a session" do
-        let! :session do
-          transport.connection.create_session("b")
+        before :each do
+          session
         end
 
-        let(:request) do
-          FakeRequest.new.tap do |request|
-            request.path_info = "/xhr_send"
-            request.session_key = 'b'
-            request.data = '["message"]'
+        context "well formed request" do
+
+          let(:request) do
+            FakeRequest.new.tap do |request|
+              request.path_info = "/xhr_send"
+              request.session_key = 'b'
+              request.data = '["message"]'
+            end
+          end
+
+          it "should respond with HTTP 204" do
+            response.status.should eql(204)
+          end
+
+          it "should respond with plain text MIME type" do
+            response.headers["Content-Type"].should match("text/plain")
+          end
+
+          it "should set session ID" do
+            cookie = response.headers["Set-Cookie"]
+            cookie.should match("JSESSIONID=#{request.session_id}; path=/")
+          end
+
+          it "should set access control" do
+            response.headers["Access-Control-Allow-Origin"].should eql(request.origin)
+            response.headers["Access-Control-Allow-Credentials"].should eql("true")
           end
         end
 
-        it "should respond with HTTP 204" do
-          response.status.should eql(204)
+        context "badly formed JSON" do
+          let(:request) do
+            FakeRequest.new.tap do |request|
+              request.path_info = "/xhr_send"
+              request.session_key = 'b'
+              request.data = '["message"'
+            end
+          end
+
+          it "should respond with HTTP 500" do
+            response.status.should eql(500)
+          end
+
+          it "should report JSON error" do
+            response
+            request.chunks.join("").should =~ /Broken JSON encoding/
+          end
         end
 
-        it "should respond with plain text MIME type" do
-          response.headers["Content-Type"].should match("text/plain")
-        end
+        context "empty body" do
+          let(:request) do
+            FakeRequest.new.tap do |request|
+              request.path_info = "/xhr_send"
+              request.session_key = 'b'
+              request.data = ''
+            end
+          end
 
-        it "should set session ID" do
-          cookie = response.headers["Set-Cookie"]
-          cookie.should match("JSESSIONID=#{request.session_id}; path=/")
-        end
+          it "should respond with HTTP 500" do
+            response.status.should eql(500)
+          end
 
-        it "should set access control" do
-          response.headers["Access-Control-Allow-Origin"].should eql(request.origin)
-          response.headers["Access-Control-Allow-Credentials"].should eql("true")
-        end
-
-        it "should call session.receive_message(request, data)" do
-          session.stub!(:receive_message)
-
-          response
+          it "should report JSON error" do
+            response
+            request.chunks.join("").should =~ /Payload expected\./
+          end
         end
       end
 
@@ -202,6 +237,9 @@ describe "XHR", :type => :transport, :em => true do
     transport_handler_eql "/xhr_streaming", "POST"
 
     describe "#handle(request)" do
+      let :session do
+      end
+
       let(:transport) do
         transport  = described_class.new(connection, Hash.new)
 
@@ -220,6 +258,11 @@ describe "XHR", :type => :transport, :em => true do
 
       it "should respond with HTTP 200" do
         response.status.should eql(200)
+      end
+
+      it "should respond with prelude + open frame" do
+        response
+        request.chunks.join("").should =~ /hhhhhhhhh\no/
       end
 
       it "should respond with javascript MIME type" do

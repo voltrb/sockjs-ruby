@@ -22,15 +22,10 @@ module SockJS
       HTML_POSTFIX = (<<-EOH + (" " * (1024 - HTML_PREFIX.bytesize)) + "\r\n\r\n").freeze
 ;
     c.start();
-    function print(d) {c.message(d);};
+    function p(d) {c.message(d);};
     window.onload = function() {c.stop();};
   </script>
       EOH
-
-
-      def session_opened(session)
-        session.wait(response)
-      end
 
       def setup_response(request, response)
         response.status = 200
@@ -41,15 +36,16 @@ module SockJS
         response
       end
 
-      def process_session(session, response)
-        if response.request.callback
-          response.write(HTML_PREFIX)
-          response.write(response.request.callback)
-          response.write(HTML_POSTFIX)
-          super
-        else
+      def get_session(response)
+        if response.request.callback.nil? or response.request.callback.empty?
           raise SockJS::HttpError.new(500, '"callback" parameter required')
         end
+
+        super
+      end
+
+      def response_beginning(response)
+        response.write(HTML_PREFIX + response.request.callback + HTML_POSTFIX)
       end
 
       def handle_http_error(request, error)
@@ -66,7 +62,7 @@ module SockJS
       def format_frame(response, frame)
         raise TypeError.new("Payload must not be nil!") if frame.nil?
 
-        "<script>\nprint(#{super.to_json});\n</script>\r\n"
+        "<script>\np(#{frame.to_s.to_json});\n</script>\r\n"
       end
     end
   end

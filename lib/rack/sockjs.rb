@@ -8,6 +8,7 @@ require "sockjs/servers/response"
 require 'rack/mount'
 
 require 'sockjs/duck-punch-rack-mount'
+require 'sockjs/duck-punch-thin-response'
 
 # Transports.
 require "sockjs/transports/info"
@@ -64,7 +65,7 @@ module Rack
 
         result = @app.call(env)
       ensure
-        ::SockJS.debug result.inspect
+        ::SockJS.debug "Rack response: " + result.inspect
       end
     end
 

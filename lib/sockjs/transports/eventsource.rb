@@ -23,7 +23,7 @@ module SockJS
       def format_frame(response, frame)
         raise TypeError.new("Payload must not be nil!") if frame.nil?
 
-        ["data: ", super, "\r\n\r\n"].join
+        ["data: ", frame.to_s, "\r\n\r\n"].join
       end
     end
   end

@@ -10,10 +10,10 @@ module SockJS
     attr_reader :request, :status, :headers, :body
     attr_writer :status
 
-    def initialize(request, status = nil, headers = Hash.new, &block)
+    def initialize(request, status = nil, headers = nil, &block)
       # request.env["async.close"]
       # ["rack.input"].closed? # it's a stream
-      @request, @status, @headers = request, status, headers
+      @request, @status, @headers = request, status, headers || {}
 
       if request.http_1_0?
         SockJS.debug "Request is in HTTP/1.0, responding with HTTP/1.0"
@@ -56,7 +56,7 @@ module SockJS
         turn_chunking_on(@headers)
       end
 
-      SockJS.debug "Headers: #{@headers.inspect}"
+      SockJS.debug "Writing headers: #{@status.inspect}/#{@headers.inspect}"
       @request.async_callback.call([@status, @headers, @body])
 
       @head_written = true
@@ -87,7 +87,6 @@ module SockJS
     def async?
       true
     end
-
 
     # Time.now.to_i shows time in seconds.
     def due_for_alive_check
@@ -162,14 +161,7 @@ module SockJS
         if @request.http_1_0?
           self.set_header("Connection", "Close")
         else
-          # On HTTP/1.1 we should respond with Keep-Alive
-          # and Transfer-Encoding: chunked (or with given
-          # Content-Length, but due to nature of SockJS,
-          # we can't predict the length). However, funny
-          # story, Thin doesn't seem to be very happy about
-          # it, so let's just say Connection: Close for
-          # the time being (as per discussion with @majek).
-          self.set_header("Connection", "Close")
+          self.set_header("Connection", "Keep-Alive")
         end
       end
     end

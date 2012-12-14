@@ -20,7 +20,7 @@ module SockJS
         return response
       end
 
-      def process_session(session, response)
+      def get_session(response)
         if response.request.callback
           super
         else
