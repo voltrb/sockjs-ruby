@@ -143,7 +143,7 @@ module Rack
 
     def initialize(session_class, options = nil)
       #TODO refactor Connection to App
-      connection = ::SockJS::Connection.new(session_class)
+      connection = ::SockJS::Connection.new(session_class, options)
 
       options ||= {}
 

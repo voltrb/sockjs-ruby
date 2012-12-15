@@ -192,13 +192,14 @@ module SockJS
     attr_accessor :disconnect_delay, :interval
     attr_reader :transport, :response, :outbox, :closing_frame, :data
 
-    def initialize()
+    def initialize(connection)
       super()
 
       debug_with do |msg|
         SockJS::debug(msg)
       end
 
+      @connection = connection
       @disconnect_delay = 5 # TODO: make this configurable.
       @received_messages = []
       @outbox = []
