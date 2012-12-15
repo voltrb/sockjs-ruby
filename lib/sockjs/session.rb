@@ -2,12 +2,9 @@
 #
 require 'meta-state'
 require 'sockjs/protocol'
-require 'sockjs/callbacks'
 
 module SockJS
   class Session < MetaState::Machine
-    include CallbackMixin
-
     class Consumer
       def initialize(response, transport)
         @response = response
@@ -183,11 +180,9 @@ module SockJS
     end
 
     def process_message(message)
-      execute_callback(:buffer, self, message)
     end
 
     def opened
-      execute_callback(:open, self)
     end
 
     def after_app_run
@@ -197,14 +192,13 @@ module SockJS
     attr_accessor :disconnect_delay, :interval
     attr_reader :transport, :response, :outbox, :closing_frame, :data
 
-    def initialize(callbacks)
+    def initialize()
       super()
 
       debug_with do |msg|
         SockJS::debug(msg)
       end
 
-      @callbacks = callbacks
       @disconnect_delay = 5 # TODO: make this configurable.
       @received_messages = []
       @outbox = []

@@ -141,9 +141,9 @@ module Rack
       end
     end
 
-    def initialize(options = nil, &block)
+    def initialize(session_class, options = nil)
       #TODO refactor Connection to App
-      connection = ::SockJS::Connection.new(&block)
+      connection = ::SockJS::Connection.new(session_class)
 
       options ||= {}
 

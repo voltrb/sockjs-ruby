@@ -36,35 +36,33 @@ module SockJS
 
       attr_accessor :options
 
+      class EchoSession < Session
+        def process_message(message)
+          SockJS.debug "\033[0;31;40m[Echo]\033[0m message: #{message.inspect}, session: #{self.object_id}"
+          send(message)
+        end
+      end
+
+      class CloseSession < Session
+        def opened
+          SockJS.debug "\033[0;31;40m[Close]\033[0m closing the session ..."
+          close(3000, "Go away!")
+        end
+      end
+
       def to_app
         options = self.options
         ::Rack::Builder.new do
           map '/echo' do
-            run ::Rack::SockJS.new(options){|connection|
-              connection.subscribe do |session, message|
-                SockJS.debug "\033[0;31;40m[Echo]\033[0m message: #{message.inspect}, session: #{session.object_id}"
-                session.send(message)
-              end
-            }
+            run ::Rack::SockJS.new(EchoSession, options)
           end
 
-
           map '/disabled_websocket_echo' do
-            run ::Rack::SockJS.new(options.merge(:websocket => false)){|connection|
-              connection.subscribe do |session, message|
-                SockJS.debug "\033[0;31;40m[Echo]\033[0m message: #{message.inspect}, session: #{session.object_id}"
-                session.send(message)
-              end
-            }
+            run ::Rack::SockJS.new(EchoSession, options.merge(:websocket => false))
           end
 
           map '/close' do
-            run ::Rack::SockJS.new(options) {|connection|
-              connection.session_open do |session, message|
-                SockJS.debug "\033[0;31;40m[Close]\033[0m closing the session ..."
-                session.close(3000, "Go away!")
-              end
-            }
+            run ::Rack::SockJS.new(CloseSession, options)
           end
 
           run MyHelloWorld.new

@@ -3,14 +3,11 @@ require 'sockjs/callbacks'
 
 module SockJS
   class Connection
-    include CallbackMixin
-
-    def initialize(&block)
-      self.callbacks[:open] << block
+    def initialize(session_class)
       self.status = :not_connected
-
-      self.execute_callback(:open, self)
+      @session_class = session_class
     end
+    attr_accessor :status
 
     #XXX TODO: remove dead sessions as they're get_session'd, along with a
     #recurring clearout
@@ -30,14 +27,6 @@ module SockJS
       end
     end
 
-    def subscribe(&block)
-      self.callbacks[:subscribe] << block
-    end
-
-    def session_open(&block)
-      self.callbacks[:session_open] << block
-    end
-
     def get_session(session_key)
       SockJS.debug "Looking up session at #{session_key.inspect}"
       sessions.fetch(session_key)
@@ -46,7 +35,7 @@ module SockJS
     def create_session(session_key)
       SockJS.debug "Creating session at #{session_key.inspect}"
       raise "Session already exists for #{session_key.inspect}" if sessions.has_key?(session_key)
-      session = Session.new(open: callbacks[:session_open], buffer: callbacks[:subscribe])
+      session = @session_class.new
       sessions[session_key] = session
       session.opened
       session
