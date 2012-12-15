@@ -6,21 +6,10 @@ require "spec_helper"
 require "sockjs"
 require "sockjs/transports/htmlfile"
 
-describe SockJS::Transports::HTMLFile do
-  around :each do |example|
-    EM.run {
-      example.run
-      EM.stop
-    }
-  end
-
+describe SockJS::Transports::HTMLFile, :em => true, :type => :transport do
   transport_handler_eql "/htmlfile", "GET"
 
   describe "#handle(request)" do
-    let(:transport) do
-      described_class.new(SockJS::Connection.new {}, Hash.new)
-    end
-
     let(:request) do
       FakeRequest.new
     end

@@ -1,6 +1,6 @@
 shared_context "Transport", :type => :transport do
   let(:connection) do
-    SockJS::Connection.new {}
+    SockJS::Connection.new(SockJS::Session)
   end
 
   let(:open_request) do

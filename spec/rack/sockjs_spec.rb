@@ -4,9 +4,7 @@ require 'rack/sockjs'
 
 describe Rack::SockJS do
   let :rack_app do
-    Rack::SockJS.new do |connection|
-
-    end
+    Rack::SockJS.new(SockJS::Session)
   end
 
   let :router do

@@ -3,10 +3,9 @@ require "spec_helper"
 require "sockjs"
 require "sockjs/transports/iframe"
 
-describe SockJS::Transports::IFrame do
+describe SockJS::Transports::IFrame, :type => :transport do
   describe "#handle(request)" do
     let(:transport) do
-      connection = SockJS::Connection.new {}
       described_class.new(connection, sockjs_url: "http://sock.js/sock.js")
     end
 

@@ -6,21 +6,10 @@ require "spec_helper"
 require "sockjs"
 require "sockjs/transports/eventsource"
 
-describe SockJS::Transports::EventSource do
-  around :each do |example|
-    EM.run {
-      example.run
-      EM.stop
-    }
-  end
-
+describe SockJS::Transports::EventSource, :type => :transport, :em => true do
   transport_handler_eql "/eventsource", "GET"
 
   describe "#handle(request)" do
-    let(:transport) do
-      described_class.new(SockJS::Connection.new {}, Hash.new)
-    end
-
     let(:request) do
       @request ||= begin
         request = FakeRequest.new
