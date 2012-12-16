@@ -1,11 +1,12 @@
 .rvmrc
-
 Gemfile.lock
 vendor
-
 /*.gem
 *.sw?
 .bundle
 corundum/
 pkg/
 protocol
+spec-profile
+spec-profile.gif
+spec-profile.symbols

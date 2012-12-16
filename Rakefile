@@ -9,11 +9,14 @@ module Corundum
   core.in_namespace do
     sanity = GemspecSanity.new(core)
     QuestionableContent.new(core) do |dbg|
-      dbg.words = %w{p debugger}
+      dbg.words = %w{debug! debugger}
     end
     rspec = RSpec.new(core)
     cov = SimpleCov.new(core, rspec) do |cov|
       cov.threshold = 70
+      cov.coverage_filter = proc do |path|
+        /\.rb$/ =~ path and /version/ !~ path
+      end
     end
 
     gem = GemBuilding.new(core)

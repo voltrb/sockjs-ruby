@@ -9,6 +9,9 @@ require 'sockjs/servers/request'
 require 'sockjs/servers/response'
 require 'sockjs/session'
 
+require 'sockjs/examples/protocol_conformance_test'
+require 'sockjs/version'
+
 module TransportSpecMacros
   def transport_handler_eql(path, method)
     describe SockJS::Transport do

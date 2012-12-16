@@ -31,9 +31,12 @@ Gem::Specification.new do |s|
   s.files = %w{
     LICENCE
     README.textile
-    lib/alter_ego.rb
+    lib/meta-state.rb
     lib/rack/sockjs.rb
     lib/sockjs.rb
+    lib/sockjs/delayed-response-body.rb
+    lib/sockjs/duck-punch-rack-mount.rb
+    lib/sockjs/duck-punch-thin-response.rb
     lib/sockjs/callbacks.rb
     lib/sockjs/connection.rb
     lib/sockjs/examples/protocol_conformance_test.rb
@@ -42,7 +45,6 @@ Gem::Specification.new do |s|
     lib/sockjs/servers/request.rb
     lib/sockjs/servers/response.rb
     lib/sockjs/session.rb
-    lib/sockjs/thin.rb
     lib/sockjs/transport.rb
     lib/sockjs/transports/eventsource.rb
     lib/sockjs/transports/htmlfile.rb
