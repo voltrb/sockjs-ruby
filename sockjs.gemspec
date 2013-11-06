@@ -17,7 +17,7 @@ Gem::Specification.new do |s|
   DESC
 
   # Ruby version
-  s.required_ruby_version = ::Gem::Requirement.new("~> 1.9")
+  s.required_ruby_version = ::Gem::Requirement.new(">= 1.9")
 
   # Dependencies
   s.add_dependency "rack"
