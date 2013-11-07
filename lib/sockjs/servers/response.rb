@@ -45,7 +45,7 @@ module SockJS
 
 
     def write_head(status = nil, headers = nil)
-      @status  = status.to_i  || @status  || raise("Please set the status!")
+      @status  = status  || @status  || raise("Please set the status!")
       @headers = headers || @headers
 
       if @headers["Content-Length"]
