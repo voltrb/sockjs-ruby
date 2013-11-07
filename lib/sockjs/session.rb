@@ -71,6 +71,7 @@ module SockJS
         @close_status = status
         @close_message = message
         transition_to(:closed)
+        closed
       end
     end
 
@@ -108,6 +109,7 @@ module SockJS
         @consumer.closing(@close_status, @close_message)
         @consumer = nil
         transition_to(:closed)
+        closed
       end
     end
 
@@ -188,6 +190,8 @@ module SockJS
     def after_app_run
     end
 
+    def closed
+    end
 
     attr_accessor :disconnect_delay, :interval
     attr_reader :transport, :response, :outbox, :closing_frame, :data
