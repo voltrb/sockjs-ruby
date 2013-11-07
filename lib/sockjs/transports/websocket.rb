@@ -107,7 +107,7 @@ module SockJS
           begin
             session.close
           rescue Object => ex
-            SockJS::debug "Error closing websocket (#{event.inspect[0..40]}): #{ex.inspect} \n#{ex.message} \n#{ex.backtrace.inspect}"
+            SockJS::debug "Error closing websocket (#{event.inspect[0..40]}): #{ex.inspect} \n#{ex.message} \n#{ex.backtrace.join("\n")}"
           end
         end
       end
