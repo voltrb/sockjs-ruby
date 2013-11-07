@@ -105,7 +105,7 @@ module SockJS
 
         web_socket.onclose = lambda do |event|
           begin
-            session.close
+            session.close(1000, "Session finished")
           rescue Object => ex
             SockJS::debug "Error closing websocket (#{event.inspect[0..40]}): #{ex.inspect} \n#{ex.message} \n#{ex.backtrace.join("\n")}"
           end
