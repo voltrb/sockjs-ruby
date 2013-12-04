@@ -143,7 +143,10 @@ module SockJS
       end
 
       def heartbeat_frame(response)
-        response.ping()
+        puts response.methods.to_S
+        response.ping() do
+          puts "ping"
+        end
       end
 
       def extract_message(event)
