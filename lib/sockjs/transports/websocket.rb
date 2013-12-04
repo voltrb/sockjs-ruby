@@ -72,7 +72,7 @@ module SockJS
       def build_response(request)
         SockJS.debug "Upgrading to WebSockets ..."
 
-        web_socket = Faye::WebSocket.new(request.env.merge({ping: 5}))
+        web_socket = Faye::WebSocket.new(request.env)
 
         web_socket.extend(WSDebuggingMixin)
 
@@ -143,6 +143,7 @@ module SockJS
       end
 
       def heartbeat_frame(response)
+        response.ping()
       end
 
       def extract_message(event)
