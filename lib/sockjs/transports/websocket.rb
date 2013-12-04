@@ -122,6 +122,7 @@ module SockJS
       end
 
       def finish_response(web_socket)
+        SockJS.debug "Finishing response"
         web_socket.close
       end
 
