@@ -10,11 +10,17 @@ module SockJS
         @response = response
         @transport = transport
         @total_sent_length = 0
+        puts response.inspect
       end
       attr_reader :response, :transport, :total_sent_length
 
       #Close the *response* not the *session*
       def disconnect
+        #WEBSCOKET shouldn have limit of data
+        if @transport.kind_of?(SockJS::Transports::WebSocket)
+          @total_sent_length = 0
+          return
+        end
         @response.finish
       end
 
@@ -56,6 +62,7 @@ module SockJS
       def attach_consumer(response, transport)
         @consumer = Consumer.new(response, transport)
         transition_to :attached
+        after_consumer_attached
       end
 
       def detach_consumer
@@ -92,6 +99,7 @@ module SockJS
 
       def detach_consumer
         transition_to :detached
+        after_consumer_detached
       end
 
       def send(*messages)
@@ -103,7 +111,7 @@ module SockJS
         @consumer.heartbeat
       end
 
-      def close(status = nil, message = nil)
+      def close(status = 1002, message = "Connection interrupted")
         @close_status = status
         @close_message = message
         @consumer.closing(@close_status, @close_message)
@@ -193,6 +201,12 @@ module SockJS
     def closed
     end
 
+    def after_consumer_attached
+    end
+
+    def after_consumer_detached
+    end
+
     attr_accessor :disconnect_delay, :interval
     attr_reader :transport, :response, :outbox, :closing_frame, :data
 
@@ -262,9 +276,9 @@ module SockJS
         begin
           @consumer.check_alive
         rescue Exception => error
-          puts "==> "
+          puts "==> #{error.message}"
           SockJS.debug error
-          puts "==> "
+          puts "==> #{error.message}"
           on_close
           @alive_checker.cancel
         end
