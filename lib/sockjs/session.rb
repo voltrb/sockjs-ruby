@@ -10,7 +10,6 @@ module SockJS
         @response = response
         @transport = transport
         @total_sent_length = 0
-        puts response.inspect
       end
       attr_reader :response, :transport, :total_sent_length
 
