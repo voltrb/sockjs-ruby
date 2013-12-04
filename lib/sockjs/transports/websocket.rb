@@ -130,6 +130,13 @@ module SockJS
         SockJS.debug "Received message event: #{event.data.inspect}"
         event.data
       end
+
+      def heartbeat_frame(web_socket)
+        web_socket.ping("ping") do
+          SockJS.debug "pong"
+        end
+        super
+      end
     end
 
     class RawWebSocket < WebSocket
@@ -143,10 +150,6 @@ module SockJS
       end
 
       def heartbeat_frame(response)
-        puts response.methods.to_S
-        response.ping() do
-          puts "ping"
-        end
       end
 
       def extract_message(event)
