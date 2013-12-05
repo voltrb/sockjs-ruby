@@ -128,6 +128,7 @@ module SockJS
     def set_allow_options_get
       self.set_header("Allow", "OPTIONS, GET")
       self.set_header("Access-Control-Allow-Methods", "OPTIONS, GET")
+      self.set_header("Access-Control-Allow-Headers", "Content-Type Origin Accept X-Requested-With X-CSRF-Token If-Modified-Since If-None-Match Auth-User-Token Authorization Connection Cookie User-Agent")
     end
 
     def set_no_cache
