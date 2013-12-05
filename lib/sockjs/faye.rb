@@ -2,6 +2,9 @@
 
 require "faye/websocket"
 
+Faye::WebSocket.load_adapter('thin')
+Faye::WebSocket.load_adapter('rainbows')
+
 class Thin::Request
   WEBSOCKET_RECEIVE_CALLBACK = 'websocket.receive_callback'.freeze
   GET = 'GET'.freeze
