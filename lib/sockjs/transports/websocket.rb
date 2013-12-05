@@ -74,7 +74,10 @@ module SockJS
 
         web_socket = Faye::WebSocket.new(request.env)
 
-        #web_socket.extend(WSDebuggingMixin)
+        web_socket.extend(WSDebuggingMixin)
+
+        SockJS.debug("web socekt: #{web_socket.inspect}")
+        SockJS.debug("web socekt methods: #{web_socket.methods.inspect}")
 
         return web_socket
       end
