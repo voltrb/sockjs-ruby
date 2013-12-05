@@ -92,6 +92,7 @@ module SockJS
         web_socket.on :open do |event|
           begin
             SockJS.debug "Attaching consumer"
+            SockJS.debug("web_socket env: #{web_socket.env.inspect}")
             session.attach_consumer(web_socket, self)
           rescue Object => ex
             SockJS::debug "Error opening (#{event.inspect[0..40]}) websocket: #{ex.inspect}"
