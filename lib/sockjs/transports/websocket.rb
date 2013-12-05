@@ -143,6 +143,15 @@ module SockJS
     class RawWebSocket < WebSocket
       register 'GET', 'websocket'
 
+      def handle_request(request)
+        ver = request.env["sec-websocket-version"] || ""
+        unless ['8', '13'].include?(ver)
+          raise HttpError.new(400, 'Only supported WebSocket protocol is RFC 6455.')
+        end
+
+        super
+      end
+
       def self.routing_prefix
         "/" + self.prefix
       end

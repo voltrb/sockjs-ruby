@@ -23,7 +23,7 @@ Gem::Specification.new do |s|
   s.add_dependency "rack"
   s.add_dependency "thin"
   s.add_dependency "json"
-  s.add_dependency "faye-websocket", "~> 0.5.0"
+  s.add_dependency "faye-websocket", "~> 0.4.7"
   s.add_dependency "regin", "~> 0.3.8"
   s.add_dependency "rack-mount", "~> 0.8.3"
 
