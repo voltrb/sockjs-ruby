@@ -28,6 +28,7 @@ module SockJS
       EOB
 
       def setup_response(request, response)
+        SockJS.debug("body: #{@body.inspect}")
         response.status = 200
         response.set_header("ETag", self.etag)
         response.set_cache_control
@@ -51,6 +52,7 @@ module SockJS
       # Handler.
       def handle_request(request)
         if request.fresh?(etag)
+          SockJS.debug("body - not modyfied")
           SockJS.debug "Content hasn't been modified."
           response = build_response(request)
           response.status = 304
