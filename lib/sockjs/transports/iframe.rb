@@ -35,6 +35,8 @@ module SockJS
       end
 
       def body
+        SockJS.debug("body: #{@body.inspect}")
+        SockJS.debug("options: #{options[:sockjs_url]}")
         @body ||= BODY.gsub("{{ sockjs_url }}", options[:sockjs_url])
       end
 
