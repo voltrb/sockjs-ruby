@@ -86,7 +86,7 @@ module SockJS
       def process_session(session, web_socket)
         #XXX Facade around websocket?
 
-        web_socket.on :open do |event|
+        web_socket.onopen = lambda do |event|
           begin
             SockJS.debug "Attaching consumer"
             session.attach_consumer(web_socket, self)
@@ -95,7 +95,7 @@ module SockJS
           end
         end
 
-        web_socket.on :message do |event|
+        web_socket.onmessage = lambda do |event|
           begin
             session.receive_message(extract_message(event))
           rescue Object => ex
@@ -104,7 +104,7 @@ module SockJS
           end
         end
 
-        web_socket.on :close do |event|
+        web_socket.onclose = lambda do |event|
           begin
             session.close(1000, "Session finished")
           rescue Object => ex
