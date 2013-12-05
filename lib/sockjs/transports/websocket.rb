@@ -72,9 +72,9 @@ module SockJS
       def build_response(request)
         SockJS.debug "Upgrading to WebSockets ..."
 
-        web_socket = Faye::WebSocket.new(request.env, nil, headers: {"HTTP_CONNECTION" => "Upgrade", "HTTP_UPGRADE" => "websocket"}, ping: 25)
+        web_socket = Faye::WebSocket.new(request.env)
 
-        web_socket.extend(WSDebuggingMixin)
+        #web_socket.extend(WSDebuggingMixin)
 
         return web_socket
       end
