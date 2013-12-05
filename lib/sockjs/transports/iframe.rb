@@ -36,8 +36,6 @@ module SockJS
       end
 
       def body
-        SockJS.debug("body: #{@body.inspect}")
-        SockJS.debug("options: #{options[:sockjs_url]}")
         @body ||= BODY.gsub("{{ sockjs_url }}", options[:sockjs_url])
       end
 
@@ -52,8 +50,6 @@ module SockJS
       # Handler.
       def handle_request(request)
         if request.fresh?(etag)
-          SockJS.debug("body - not modyfied")
-          SockJS.debug "Content hasn't been modified."
           response = build_response(request)
           response.status = 304
           response.finish
