@@ -100,6 +100,7 @@ module SockJS
         web_socket.on :message do |event|
           begin
             session.activate unless @active
+            @active = true
             session.receive_message(extract_message(event))
           rescue Object => ex
             SockJS::debug "Error receiving message on websocket (#{event.inspect[0..40]}): #{ex.inspect}"
