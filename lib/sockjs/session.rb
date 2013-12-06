@@ -161,6 +161,10 @@ module SockJS
       def attach_consumer(response, transport)
         transport.closing_frame(response, @close_status, @close_message)
       end
+
+      def close(status, message)
+        #can be called from faye onclose hook
+      end
     end
 
 
