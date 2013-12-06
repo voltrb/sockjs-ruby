@@ -147,6 +147,7 @@ module SockJS
           @session.suspend if @session && @active
           @active = false
         end
+        @pong = false
         web_socket.ping("ping") do
           SockJS.debug "pong"
           @pong = true
