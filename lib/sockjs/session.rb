@@ -61,6 +61,7 @@ module SockJS
       def attach_consumer(response, transport)
         @consumer = Consumer.new(response, transport)
         transition_to :attached
+        activate
         after_consumer_attached
       end
 
@@ -73,6 +74,14 @@ module SockJS
         @outbox += messages
       end
 
+      def suspend
+        @suspend = true
+      end
+
+      def activate
+        @suspend = false
+      end
+
       def close(status = nil, message = nil)
         @close_status = status
         @close_message = message
@@ -83,6 +92,7 @@ module SockJS
 
     state :Attached do
       def on_enter
+        @suspended = false
         @consumer.messages(@outbox)
         @outbox.clear
         clear_all_timers
@@ -110,6 +120,19 @@ module SockJS
         @consumer.heartbeat
       end
 
+      def suspend
+        @suspend = true
+        SockJS.debug "Session suspended - it is on hold"
+        suspended
+      end
+
+      def activate
+        activated
+        SockJS.debug "Session activated - is not on hold anymore!"
+        @suspend = false
+      end
+
+
       def close(status = 1002, message = "Connection interrupted")
         @close_status = status
         @close_message = message
@@ -126,6 +149,14 @@ module SockJS
         @close_message ||= "Go away!"
         clear_all_timers
         set_close_timer
+      end
+
+      def suspend
+        @suspend = true
+      end
+
+      def activate
+        @suspend = false
       end
 
       def attach_consumer(response, transport)
@@ -155,6 +186,11 @@ module SockJS
 
       set_disconnect_timer
     end
+
+    def suspended?
+      !!@suspend
+    end
+
 
     def check_content_length
       if @consumer.total_sent_length >= max_permitted_content_length
@@ -198,6 +234,12 @@ module SockJS
     end
 
     def closed
+    end
+
+    def activated
+    end
+
+    def suspended
     end
 
     def after_consumer_attached
