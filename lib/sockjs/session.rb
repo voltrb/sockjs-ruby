@@ -60,8 +60,8 @@ module SockJS
 
       def attach_consumer(response, transport)
         @consumer = Consumer.new(response, transport)
-        transition_to :attached
         activate
+        transition_to :attached
         after_consumer_attached
       end
 
@@ -92,7 +92,6 @@ module SockJS
 
     state :Attached do
       def on_enter
-        @suspended = false
         @consumer.messages(@outbox)
         @outbox.clear
         clear_all_timers

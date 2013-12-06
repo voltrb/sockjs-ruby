@@ -76,9 +76,6 @@ module SockJS
 
         web_socket.extend(WSDebuggingMixin)
 
-        SockJS.debug("web socekt: #{web_socket.inspect}")
-        SockJS.debug("web socekt methods: #{web_socket.methods.inspect}")
-
         return web_socket
       end
 
@@ -89,13 +86,12 @@ module SockJS
       def process_session(session, web_socket)
         #XXX Facade around websocket?
         @session = session
-
+        @active  = nil
         web_socket.on :open do |event|
           begin
             SockJS.debug "Attaching consumer"
-            SockJS.debug("web_socket env: #{web_socket.env.inspect}")
-            session.attach_consumer(web_socket, self)
             @active = true
+            session.attach_consumer(web_socket, self)
           rescue Object => ex
             SockJS::debug "Error opening (#{event.inspect[0..40]}) websocket: #{ex.inspect}"
           end
