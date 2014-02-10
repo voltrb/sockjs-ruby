@@ -77,10 +77,6 @@ module SockJS
       def suspend
       end
 
-      def suspended?
-        false
-      end
-
       def activate
       end
 
@@ -88,7 +84,6 @@ module SockJS
         @close_status = status
         @close_message = message
         transition_to(:closed)
-        closed
       end
     end
 
@@ -125,13 +120,8 @@ module SockJS
         transition_to :suspended
       end
 
-      def suspended?
-        false
-      end
-
       def activate
       end
-
 
       def close(status = 1002, message = "Connection interrupted")
         @close_status = status
@@ -139,7 +129,6 @@ module SockJS
         @consumer.closing(@close_status, @close_message)
         @consumer = nil
         transition_to(:closed)
-        closed
       end
     end
 
@@ -171,16 +160,11 @@ module SockJS
       def suspend
       end
 
-      def suspended?
-        true
-      end
-
       def activate
         SockJS.debug "Session activated - is not on hold anymore!"
         transition_to :attached
         activated
       end
-
 
       def close(status = 1002, message = "Connection interrupted")
         @close_status = status
@@ -188,7 +172,6 @@ module SockJS
         @consumer.closing(@close_status, @close_message)
         @consumer = nil
         transition_to(:closed)
-        closed
       end
     end
 
@@ -198,14 +181,11 @@ module SockJS
         @close_message ||= "Go away!"
         clear_all_timers
         set_close_timer
+        closed
       end
 
       def suspend
         SockJS.debug "Session#suspend: connection closed!"
-      end
-
-      def suspended?
-        false
       end
 
       def activate
@@ -232,7 +212,6 @@ module SockJS
       activate
 
       SockJS.debug "Session receiving message: #{data.inspect}"
-      SockJS.debug "Current state: #{current_state.inspect}"
       messages = parse_json(data)
       SockJS.debug "Message parsed as: #{messages.inspect}"
       unless messages.empty?
@@ -246,6 +225,9 @@ module SockJS
       set_disconnect_timer
     end
 
+    def suspended?
+      current_state == SockJS::Session::Suspended
+    end
 
     def check_content_length
       if @consumer.total_sent_length >= max_permitted_content_length
@@ -364,9 +346,9 @@ module SockJS
     def disconnect_expired
       SockJS.debug "#{@disconnect_delay} has passed, firing @disconnect_timer"
       close
+      #XXX Shouldn't destroy the session?
     end
 
-    #XXX Remove?  What's this for?
     def check_response_alive
       if @consumer
         begin
