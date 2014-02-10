@@ -70,6 +70,12 @@ module SockJS
         close(1002,"Connection interrupted")
       end
 
+      def activate
+      end
+
+      def suspended
+      end
+
       def send(*messages)
         @outbox += messages
       end
@@ -235,7 +241,7 @@ module SockJS
 
     def run_user_app
       unless @received_messages.empty?
-        reset_heartbeat_timer
+        reset_heartbeat_timer #XXX Only one point which can set hearbeat while state is closed
 
         SockJS.debug "Executing user's SockJS app"
 
