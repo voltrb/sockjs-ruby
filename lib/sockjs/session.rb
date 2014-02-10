@@ -74,12 +74,6 @@ module SockJS
         @outbox += messages
       end
 
-      def suspend
-      end
-
-      def activate
-      end
-
       def close(status = nil, message = nil)
         @close_status = status
         @close_message = message
@@ -413,6 +407,10 @@ module SockJS
     end
 
     def set_heartbeat_timer
+      if current_state == SockJS::Session::Closed
+        SockJS.debug "trying to setup heartbeat on closed session!"
+        return
+      end
       clear_timer(:disconnect)
       clear_timer(:alive)
       set_timer(:heartbeat, EM::PeriodicTimer, 25) do
@@ -422,7 +420,11 @@ module SockJS
 
     def reset_heartbeat_timer
       clear_timer(:heartbeat)
-      set_heartbeat_timer
+      if current_state == SockJS::Session::Closed
+        SockJS.debug "trying to setup heartbeat on closed session!"
+      else
+        set_heartbeat_timer
+      end
     end
 
     def set_disconnect_timer
