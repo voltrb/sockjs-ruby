@@ -75,11 +75,13 @@ module SockJS
       end
 
       def suspend
-        @suspend = true
+      end
+
+      def suspended?
+        false
       end
 
       def activate
-        @suspend = false
       end
 
       def close(status = nil, message = nil)
@@ -120,15 +122,63 @@ module SockJS
       end
 
       def suspend
-        @suspend = true
+        transition_to :suspended
+      end
+
+      def suspended?
+        false
+      end
+
+      def activate
+      end
+
+
+      def close(status = 1002, message = "Connection interrupted")
+        @close_status = status
+        @close_message = message
+        @consumer.closing(@close_status, @close_message)
+        @consumer = nil
+        transition_to(:closed)
+        closed
+      end
+    end
+
+    state :Suspended do
+      def on_enter
         SockJS.debug "Session suspended - it is on hold"
         suspended
       end
 
+      def attach_consumer(response, transport)
+        SockJS.debug "Session#attach_consumer: another connection still open"
+        transport.closing_frame(response, 2010, "Another connection still open")
+        close(1002, "Connection interrupted")
+      end
+
+      def detach_consumer
+        transition_to :detached
+        after_consumer_detached
+      end
+
+      def send(*messages)
+        @outbox += messages
+      end
+
+      def send_heartbeat
+        @consumer.heartbeat
+      end
+
+      def suspend
+      end
+
+      def suspended?
+        true
+      end
+
       def activate
-        activated
         SockJS.debug "Session activated - is not on hold anymore!"
-        @suspend = false
+        transition_to :attached
+        activated
       end
 
 
@@ -151,18 +201,22 @@ module SockJS
       end
 
       def suspend
-        @suspend = true
+        SockJS.debug "Session#suspend: connection closed!"
+      end
+
+      def suspended?
+        false
       end
 
       def activate
-        @suspend = false
+        SockJS.debug "Session#activate: connection closed!"
       end
 
       def attach_consumer(response, transport)
         transport.closing_frame(response, @close_status, @close_message)
       end
 
-      def close(status, message)
+      def close(status=nil, message=nil)
         #can be called from faye onclose hook
       end
     end
@@ -175,8 +229,10 @@ module SockJS
     # of json-encoded messages, depending on transport.
     def receive_message(data)
       clear_timer(:disconnect)
+      activate
 
       SockJS.debug "Session receiving message: #{data.inspect}"
+      SockJS.debug "Current state: #{current_state.inspect}"
       messages = parse_json(data)
       SockJS.debug "Message parsed as: #{messages.inspect}"
       unless messages.empty?
@@ -190,15 +246,11 @@ module SockJS
       set_disconnect_timer
     end
 
-    def suspended?
-      !!@suspend
-    end
-
 
     def check_content_length
       if @consumer.total_sent_length >= max_permitted_content_length
         SockJS.debug "Maximum content length exceeded, closing the connection."
-
+        #shouldn't be restarting connection?
         @consumer.disconnect
       else
         SockJS.debug "Permitted content length: #{@consumer.total_sent_length} of #{max_permitted_content_length}"

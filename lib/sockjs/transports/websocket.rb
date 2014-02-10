@@ -86,11 +86,9 @@ module SockJS
       def process_session(session, web_socket)
         #XXX Facade around websocket?
         @session = session
-        @active  = nil
         web_socket.on :open do |event|
           begin
             SockJS.debug "Attaching consumer"
-            @active = true
             session.attach_consumer(web_socket, self)
           rescue Object => ex
             SockJS::debug "Error opening (#{event.inspect[0..40]}) websocket: #{ex.inspect}"
@@ -99,8 +97,6 @@ module SockJS
 
         web_socket.on :message do |event|
           begin
-            session.activate unless @active
-            @active = true
             session.receive_message(extract_message(event))
           rescue Object => ex
             SockJS::debug "Error receiving message on websocket (#{event.inspect[0..40]}): #{ex.inspect}"
@@ -141,15 +137,13 @@ module SockJS
 
         #no replay from last connection - susspend session
         if !@pong
-          @session.suspend if @session && @active
-          @active = false
+          @session.suspend if @session
         end
         @pong = false
         web_socket.ping("ping") do
           SockJS.debug "pong"
           @pong = true
-          @session.activate unless @active
-          @active = true
+          @session.activate
         end
         super
       end
