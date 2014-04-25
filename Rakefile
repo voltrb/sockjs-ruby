@@ -1,3 +1,8 @@
+require 'rubygems'
+require 'bundler'
+require "bundler/gem_tasks"
+Bundler.require(:development)
+
 # vim: set ft=ruby :
 # require 'corundum/tasklibs'
 #
