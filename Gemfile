@@ -1,7 +1,7 @@
 # encoding: utf-8
-source :rubygems
+source 'https://rubygems.org'
 
-gem 'corundum'
+# gem 'corundum'
 gem "thin"
 gem "rack"
 gem "faye-websocket"
