@@ -15,8 +15,8 @@ describe SockJS::Transports::WebSocket, :type => :transport do
 
   let :request do
     env = {
-      "HTTP_CONNECTION" => "Upgrade",
-      "HTTP_UPGRADE" => "WebSocket"}
+      "HTTP_CONNECTION" => "UpGradE",
+      "HTTP_UPGRADE" => "WeBsockeT"}
     FakeRequest.new(env.merge(request_options)).tap do |request|
       request.path_info = "/a/b/websocket"
     end

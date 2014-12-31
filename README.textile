@@ -13,10 +13,10 @@ h2. The Client-Side Part
 For the client-side part you have to use JS library "sockjs-client":http://sockjs.github.com/sockjs-client which provides WebSocket-like API. Here's an example:
 
 <pre>
-<script src="http://cdn.sockjs.org/sockjs-0.2.1.min.js"></script>
+<script src="http://cdn.sockjs.org/sockjs-0.3.4.min.js"></script>
 
 <script>
-  var sock = new SockJS("http://mydomain.com/my_prefix");
+  var sock = new SockJS("http://mydomain.com/echo");
 
   sock.onopen = function() {
     console.log("open");
@@ -29,27 +29,63 @@ For the client-side part you have to use JS library "sockjs-client":http://sockj
   sock.onclose = function() {
     console.log("close");
   };
+  
+  // watch it work by doing sock.send('/echo') from the console
 </script>
 </pre>
 
 h2. The Server-Side Part
 
-Now in order to have someone to talk to, we need to run a server. That's exactly what is sockjs-ruby good for:
+Now in order to have someone to talk to, we need to run a server. That's exactly what is sockjs-ruby good for!
+The following will initialize the sock client on the browser, and setup the server.
 
 <pre>
 #!/usr/bin/env ruby
 # encoding: utf-8
 
+require "thin"
 require "rack"
 require "rack/sockjs"
-require "eventmachine"
 
 # Your custom app.
 class MyHelloWorld
   def call(env)
-    body = "This is the app, not SockJS."
+    body = <<-HTML
+<html>
+  <head>
+    <title>Hello World!</title>
+    <script src="http://cdn.sockjs.org/sockjs-0.3.4.min.js"></script>
+
+    <script>
+      var sock = new SockJS("/echo");
+
+      sock.onopen = function() {
+       console.log("open");
+      };
+
+      sock.onmessage = function(e) {
+        console.log("message", e.data);
+      };
+
+      sock.onclose = function() {
+        console.log("close");
+      };
+
+      // from the console => sock.send('test');
+      // from the console => sock.close();
+    </script>
+  </head>
+  <body>
+    <h1>Hello World!</h1>
+    <p>
+      This is the app, not SockJS.
+    </p>
+  </body>
+</html>
+HTML
+     
     headers = {
-      "Content-Type" => "text/plain; charset=UTF-8",
+      "Content-Type" => "text/html; charset=UTF-8",
       "Content-Length" => body.bytesize.to_s
     }
 
@@ -57,20 +93,29 @@ class MyHelloWorld
   end
 end
 
+class EchoSession < SockJS::Session
+  def process_message(message)
+    SockJS.debug "\033[0;31;40m[Echo]\033[0m message: #{message.inspect}, session: #{self.object_id}"
+    send(message)
+  end
+end
+
+class CloseSession < SockJS::Session
+  def opened
+    SockJS.debug "\033[0;31;40m[Close]\033[0m closing the session ..."
+    close(3000, "Go away!")
+  end
+end
 
 app = Rack::Builder.new do
   # Run one SockJS app on /echo.
-  use SockJS, "/echo" do |connection|
-    connection.subscribe do |session, message|
-      session.send(message)
-    end
+  map "/echo" do
+    run Rack::SockJS.new(EchoSession)
   end
 
   # ... and the other one on /close.
-  use SockJS, "/close" do |connection|
-    connection.session_open do |session|
-      session.close(3000, "Go away!")
-    end
+  map "/close" do
+    run Rack::SockJS.new(CloseSession)
   end
 
   # This app will run on other URLs than /echo and /close,
@@ -78,11 +123,8 @@ app = Rack::Builder.new do
   run MyHelloWorld.new
 end
 
-
-EM.run do
-  thin = Rack::Handler.get("thin")
-  thin.run(app.to_app, Port: 8081)
-end
+thin = Rack::Handler.get("thin")
+thin.run(app.to_app, Port: 3000, Host: "0.0.0.0")
 </pre>
 
 For more complex example check "examples/sockjs_apps_for_sockjs_protocol_tests.rb":https://github.com/sockjs/sockjs-ruby/blob/master/examples/sockjs_apps_for_sockjs_protocol_tests.rb
